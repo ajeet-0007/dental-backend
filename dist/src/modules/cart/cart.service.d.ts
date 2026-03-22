@@ -1,6 +1,6 @@
-import { Repository } from 'typeorm';
-import { Cart, Product, ProductVariant, Inventory } from '../../database/entities';
-import { AddToCartDto, UpdateCartItemDto } from './dto/cart.dto';
+import { Repository } from "typeorm";
+import { Cart, Product, ProductVariant, Inventory } from "../../database/entities";
+import { AddToCartDto, UpdateCartItemDto } from "./dto/cart.dto";
 export declare class CartService {
     private cartRepository;
     private productRepository;

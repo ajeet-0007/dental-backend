@@ -27,13 +27,13 @@ let CartService = class CartService {
     async addToCart(userId, addToCartDto) {
         const { productId, productVariantId, quantity } = addToCartDto;
         const product = await this.productRepository.findOne({
-            where: { id: productId },
+            where: { id: +productId },
         });
         if (!product) {
-            throw new common_1.NotFoundException('Product not found');
+            throw new common_1.NotFoundException("Product not found");
         }
         if (!product.isActive) {
-            throw new common_1.BadRequestException('Product is not available');
+            throw new common_1.BadRequestException("Product is not available");
         }
         let price = product.sellingPrice;
         if (productVariantId) {
@@ -41,7 +41,7 @@ let CartService = class CartService {
                 where: { id: productVariantId, productId },
             });
             if (!variant) {
-                throw new common_1.NotFoundException('Product variant not found');
+                throw new common_1.NotFoundException("Product variant not found");
             }
             price = variant.sellingPrice;
         }
@@ -55,7 +55,11 @@ let CartService = class CartService {
             }
         }
         let cartItem = await this.cartRepository.findOne({
-            where: { userId, productId, productVariantId: productVariantId || undefined },
+            where: {
+                userId,
+                productId,
+                productVariantId: productVariantId || undefined,
+            },
         });
         if (cartItem) {
             const newQuantity = cartItem.quantity + quantity;
@@ -80,7 +84,7 @@ let CartService = class CartService {
     async getCart(userId) {
         const cartItems = await this.cartRepository.find({
             where: { userId },
-            relations: ['product', 'product.category', 'productVariant'],
+            relations: ["product", "product.category", "productVariant"],
         });
         return cartItems.map((item) => ({
             id: item.id,
@@ -109,10 +113,10 @@ let CartService = class CartService {
     async updateCartItem(userId, cartItemId, updateCartItemDto) {
         const cartItem = await this.cartRepository.findOne({
             where: { id: cartItemId, userId },
-            relations: ['product'],
+            relations: ["product"],
         });
         if (!cartItem) {
-            throw new common_1.NotFoundException('Cart item not found');
+            throw new common_1.NotFoundException("Cart item not found");
         }
         const inventory = await this.inventoryRepository.findOne({
             where: { productId: cartItem.productId },
@@ -131,7 +135,7 @@ let CartService = class CartService {
             where: { id: cartItemId, userId },
         });
         if (!cartItem) {
-            throw new common_1.NotFoundException('Cart item not found');
+            throw new common_1.NotFoundException("Cart item not found");
         }
         await this.cartRepository.remove(cartItem);
     }

@@ -10,6 +10,7 @@ exports.AppModule = void 0;
 const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const typeorm_1 = require("@nestjs/typeorm");
+const platform_express_1 = require("@nestjs/platform-express");
 const auth_module_1 = require("./modules/auth/auth.module");
 const users_module_1 = require("./modules/users/users.module");
 const addresses_module_1 = require("./modules/addresses/addresses.module");
@@ -20,6 +21,8 @@ const cart_module_1 = require("./modules/cart/cart.module");
 const orders_module_1 = require("./modules/orders/orders.module");
 const payments_module_1 = require("./modules/payments/payments.module");
 const shipping_module_1 = require("./modules/shipping/shipping.module");
+const admin_module_1 = require("./modules/admin/admin.module");
+const imagekit_module_1 = require("./modules/imagekit/imagekit.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -28,20 +31,25 @@ exports.AppModule = AppModule = __decorate([
         imports: [
             config_1.ConfigModule.forRoot({
                 isGlobal: true,
-                envFilePath: '.env',
+                envFilePath: ".env",
+            }),
+            platform_express_1.MulterModule.register({
+                limits: {
+                    fileSize: 5 * 1024 * 1024,
+                },
             }),
             typeorm_1.TypeOrmModule.forRootAsync({
                 imports: [config_1.ConfigModule],
                 useFactory: async (configService) => ({
-                    type: 'mysql',
-                    host: configService.get('MYSQL_DATABASE_HOST'),
-                    port: configService.get('MYSQL_DATABASE_PORT'),
-                    username: configService.get('MYSQL_DATABASE_USER'),
-                    password: configService.get('MYSQL_DATABASE_PASSWORD'),
-                    database: configService.get('MYSQL_DATABASE_NAME'),
-                    entities: [__dirname + '/database/entities/*.entity{.ts,.js}'],
+                    type: "mysql",
+                    host: configService.get("MYSQL_DATABASE_HOST"),
+                    port: configService.get("MYSQL_DATABASE_PORT"),
+                    username: configService.get("MYSQL_DATABASE_USER"),
+                    password: configService.get("MYSQL_DATABASE_PASSWORD"),
+                    database: configService.get("MYSQL_DATABASE_NAME"),
+                    entities: [__dirname + "/database/entities/*.entity{.ts,.js}"],
                     synchronize: false,
-                    logging: configService.get('NODE_ENV') === 'development',
+                    logging: configService.get("NODE_ENV") === "development",
                     extra: {
                         connectionLimit: 10,
                     },
@@ -58,6 +66,8 @@ exports.AppModule = AppModule = __decorate([
             orders_module_1.OrdersModule,
             payments_module_1.PaymentsModule,
             shipping_module_1.ShippingModule,
+            admin_module_1.AdminModule,
+            imagekit_module_1.ImageKitModule,
         ],
     })
 ], AppModule);

@@ -1,8 +1,17 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Cart, Product, ProductVariant, Inventory } from '../../database/entities';
-import { AddToCartDto, UpdateCartItemDto } from './dto/cart.dto';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import {
+  Cart,
+  Product,
+  ProductVariant,
+  Inventory,
+} from "../../database/entities";
+import { AddToCartDto, UpdateCartItemDto } from "./dto/cart.dto";
 
 @Injectable()
 export class CartService {
@@ -21,15 +30,15 @@ export class CartService {
     const { productId, productVariantId, quantity } = addToCartDto;
 
     const product = await this.productRepository.findOne({
-      where: { id: productId },
+      where: { id: +productId },
     });
 
     if (!product) {
-      throw new NotFoundException('Product not found');
+      throw new NotFoundException("Product not found");
     }
 
     if (!product.isActive) {
-      throw new BadRequestException('Product is not available');
+      throw new BadRequestException("Product is not available");
     }
 
     let price = product.sellingPrice;
@@ -40,7 +49,7 @@ export class CartService {
       });
 
       if (!variant) {
-        throw new NotFoundException('Product variant not found');
+        throw new NotFoundException("Product variant not found");
       }
 
       price = variant.sellingPrice;
@@ -53,21 +62,29 @@ export class CartService {
     if (inventory && inventory.trackInventory) {
       const available = inventory.quantity - inventory.reservedQuantity;
       if (available < quantity) {
-        throw new BadRequestException(`Only ${available} items available in stock`);
+        throw new BadRequestException(
+          `Only ${available} items available in stock`,
+        );
       }
     }
 
     let cartItem = await this.cartRepository.findOne({
-      where: { userId, productId, productVariantId: productVariantId || undefined },
+      where: {
+        userId,
+        productId,
+        productVariantId: productVariantId || undefined,
+      },
     });
 
     if (cartItem) {
       const newQuantity = cartItem.quantity + quantity;
-      
+
       if (inventory && inventory.trackInventory) {
         const available = inventory.quantity - inventory.reservedQuantity;
         if (available < newQuantity) {
-          throw new BadRequestException(`Only ${available} items available in stock`);
+          throw new BadRequestException(
+            `Only ${available} items available in stock`,
+          );
         }
       }
 
@@ -87,7 +104,7 @@ export class CartService {
   async getCart(userId: string): Promise<any[]> {
     const cartItems = await this.cartRepository.find({
       where: { userId },
-      relations: ['product', 'product.category', 'productVariant'],
+      relations: ["product", "product.category", "productVariant"],
     });
 
     return cartItems.map((item) => ({
@@ -122,11 +139,11 @@ export class CartService {
   ): Promise<Cart> {
     const cartItem = await this.cartRepository.findOne({
       where: { id: cartItemId, userId },
-      relations: ['product'],
+      relations: ["product"],
     });
 
     if (!cartItem) {
-      throw new NotFoundException('Cart item not found');
+      throw new NotFoundException("Cart item not found");
     }
 
     const inventory = await this.inventoryRepository.findOne({
@@ -136,7 +153,9 @@ export class CartService {
     if (inventory && inventory.trackInventory) {
       const available = inventory.quantity - inventory.reservedQuantity;
       if (available < updateCartItemDto.quantity) {
-        throw new BadRequestException(`Only ${available} items available in stock`);
+        throw new BadRequestException(
+          `Only ${available} items available in stock`,
+        );
       }
     }
 
@@ -150,7 +169,7 @@ export class CartService {
     });
 
     if (!cartItem) {
-      throw new NotFoundException('Cart item not found');
+      throw new NotFoundException("Cart item not found");
     }
 
     await this.cartRepository.remove(cartItem);
@@ -160,7 +179,9 @@ export class CartService {
     await this.cartRepository.delete({ userId });
   }
 
-  async getCartTotal(userId: string): Promise<{ subtotal: number; items: number }> {
+  async getCartTotal(
+    userId: string,
+  ): Promise<{ subtotal: number; items: number }> {
     const cartItems = await this.getCart(userId);
 
     const subtotal = cartItems.reduce((total, item) => {

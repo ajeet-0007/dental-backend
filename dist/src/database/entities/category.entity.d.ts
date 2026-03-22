@@ -1,6 +1,6 @@
-import { Product } from './product.entity';
+import { Product } from "./product.entity";
 export declare class Category {
-    id: string;
+    id: number;
     name: string;
     slug: string;
     description: string;

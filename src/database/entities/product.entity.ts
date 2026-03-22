@@ -7,18 +7,18 @@ import {
   ManyToOne,
   OneToMany,
   JoinColumn,
-} from 'typeorm';
-import { Category } from './category.entity';
-import { ProductVariant } from './product-variant.entity';
-import { Inventory } from './inventory.entity';
-import { Review } from './review.entity';
-import { Cart } from './cart.entity';
-import { OrderItem } from './order-item.entity';
+} from "typeorm";
+import { Category } from "./category.entity";
+import { ProductVariant } from "./product-variant.entity";
+import { Inventory } from "./inventory.entity";
+import { Review } from "./review.entity";
+import { Cart } from "./cart.entity";
+import { OrderItem } from "./order-item.entity";
 
-@Entity('products')
+@Entity("products")
 export class Product {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+  @PrimaryGeneratedColumn()
+  id: number;
 
   @Column()
   name: string;
@@ -26,10 +26,10 @@ export class Product {
   @Column({ unique: true })
   slug: string;
 
-  @Column({ type: 'text', nullable: true })
+  @Column({ type: "text", nullable: true })
   description: string;
 
-  @Column({ type: 'text', nullable: true })
+  @Column({ type: "text", nullable: true })
   shortDescription: string;
 
   @Column({ nullable: true })
@@ -47,13 +47,13 @@ export class Product {
   @Column({ nullable: true })
   brand: string;
 
-  @Column({ default: 'unit' })
+  @Column({ default: "unit" })
   unit: string;
 
   @Column({ default: 0 })
   minOrderQuantity: number;
 
-  @Column('simple-array', { nullable: true })
+  @Column("json", { nullable: true })
   images: string[];
 
   @Column({ default: true })
@@ -72,7 +72,7 @@ export class Product {
   categoryId: string;
 
   @ManyToOne(() => Category, (category) => category.products)
-  @JoinColumn({ name: 'categoryId' })
+  @JoinColumn({ name: "categoryId" })
   category: Category;
 
   @OneToMany(() => ProductVariant, (variant) => variant.product)

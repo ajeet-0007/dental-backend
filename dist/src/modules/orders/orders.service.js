@@ -33,10 +33,10 @@ let OrdersService = class OrdersService {
     async create(userId, createOrderDto) {
         const cartItems = await this.cartRepository.find({
             where: { userId },
-            relations: ['product', 'productVariant'],
+            relations: ["product", "productVariant"],
         });
         if (cartItems.length === 0) {
-            throw new common_1.BadRequestException('Cart is empty');
+            throw new common_1.BadRequestException("Cart is empty");
         }
         let shippingAddress = createOrderDto.shippingAddress;
         if (createOrderDto.addressId) {
@@ -44,9 +44,9 @@ let OrdersService = class OrdersService {
                 where: { id: +createOrderDto.addressId, userId },
             });
             if (!address) {
-                throw new common_1.NotFoundException('Address not found');
+                throw new common_1.NotFoundException("Address not found");
             }
-            shippingAddress = `${address.name}, ${address.addressLine1}, ${address.addressLine2 || ''}, ${address.city}, ${address.state} - ${address.pincode}`;
+            shippingAddress = `${address.name}, ${address.addressLine1}, ${address.addressLine2 || ""}, ${address.city}, ${address.state} - ${address.pincode}`;
         }
         let subtotal = 0;
         const orderItems = [];
@@ -60,23 +60,25 @@ let OrdersService = class OrdersService {
                 productId: String(product.id),
                 productVariantId: variant?.id ? String(variant.id) : undefined,
                 productName: product.name,
-                productImage: variant?.image || product.images?.[0] || '',
-                sku: variant?.sku || product.sku || '',
+                productImage: variant?.image || product.images?.[0] || "",
+                sku: variant?.sku || product.sku || "",
                 quantity: cartItem.quantity,
                 price: product.price,
                 sellingPrice: price,
-                taxAmount: 0,
+                taxAmount: Math.round(itemTotal * 0.18 * 100) / 100,
                 discountAmount: 0,
-                totalAmount: itemTotal,
+                totalAmount: itemTotal + Math.round(itemTotal * 0.18 * 100) / 100,
             });
         }
         const shippingAmount = subtotal > 500 ? 0 : 50;
-        const totalAmount = subtotal + shippingAmount;
+        const taxAmount = Math.round(subtotal * 0.18 * 100) / 100;
+        const totalAmount = subtotal + shippingAmount + taxAmount;
         const order = this.orderRepository.create({
             orderNumber: (0, slugify_1.generateOrderNumber)(),
             userId,
             status: entities_1.OrderStatus.PENDING_PAYMENT,
             subtotal,
+            taxAmount,
             shippingAmount,
             discountAmount: 0,
             totalAmount,
@@ -97,16 +99,18 @@ let OrdersService = class OrdersService {
     }
     async findAll(userId, page = 1, limit = 10) {
         const queryBuilder = this.orderRepository
-            .createQueryBuilder('order')
-            .leftJoinAndSelect('order.items', 'items')
-            .where('order.userId = :userId', { userId })
-            .andWhere('order.status != :failedStatus', { failedStatus: entities_1.OrderStatus.PAYMENT_FAILED })
-            .orderBy('order.createdAt', 'DESC')
+            .createQueryBuilder("order")
+            .leftJoinAndSelect("order.items", "items")
+            .where("order.userId = :userId", { userId })
+            .andWhere("order.status != :failedStatus", {
+            failedStatus: entities_1.OrderStatus.PAYMENT_FAILED,
+        })
+            .orderBy("order.createdAt", "DESC")
             .skip((page - 1) * limit)
             .take(limit);
         const [orders, total] = await queryBuilder.getManyAndCount();
         return {
-            orders: orders.map(order => ({
+            orders: orders.map((order) => ({
                 id: order.id,
                 orderNumber: order.orderNumber,
                 status: order.status,
@@ -116,7 +120,7 @@ let OrdersService = class OrdersService {
                 discountAmount: order.discountAmount,
                 shippingAddress: order.shippingAddress,
                 createdAt: order.createdAt,
-                items: order.items?.map(item => ({
+                items: order.items?.map((item) => ({
                     id: item.id,
                     productId: item.productId,
                     productVariantId: item.productVariantId,
@@ -128,40 +132,40 @@ let OrdersService = class OrdersService {
                     totalAmount: item.totalAmount,
                 })) || [],
             })),
-            total
+            total,
         };
     }
     async findOne(id) {
         const order = await this.orderRepository.findOne({
             where: { id },
             relations: [
-                'items',
-                'items.product',
-                'items.product.category',
-                'payments',
-                'shipments',
-                'user',
+                "items",
+                "items.product",
+                "items.product.category",
+                "payments",
+                "shipments",
+                "user",
             ],
         });
         if (!order) {
-            throw new common_1.NotFoundException('Order not found');
+            throw new common_1.NotFoundException("Order not found");
         }
         return order;
     }
     async findByOrderNumber(orderNumber, userId) {
         const order = await this.orderRepository.findOne({
             where: { orderNumber, userId },
-            relations: ['items', 'items.product', 'payments', 'shipments'],
+            relations: ["items", "items.product", "payments", "shipments"],
         });
         if (!order) {
-            throw new common_1.NotFoundException('Order not found');
+            throw new common_1.NotFoundException("Order not found");
         }
         return order;
     }
     async updateStatus(id, updateOrderStatusDto) {
         const order = await this.findOne(id);
         if (!Object.values(entities_1.OrderStatus).includes(updateOrderStatusDto.status)) {
-            throw new common_1.BadRequestException('Invalid order status');
+            throw new common_1.BadRequestException("Invalid order status");
         }
         order.status = updateOrderStatusDto.status;
         if (updateOrderStatusDto.adminNote) {
@@ -176,12 +180,12 @@ let OrdersService = class OrdersService {
     }
     async getOrdersForAdmin(page = 1, limit = 10, status) {
         const queryBuilder = this.orderRepository
-            .createQueryBuilder('order')
-            .leftJoinAndSelect('order.items', 'items')
-            .leftJoinAndSelect('order.user', 'user')
-            .orderBy('order.createdAt', 'DESC');
+            .createQueryBuilder("order")
+            .leftJoinAndSelect("order.items", "items")
+            .leftJoinAndSelect("order.user", "user")
+            .orderBy("order.createdAt", "DESC");
         if (status) {
-            queryBuilder.andWhere('order.status = :status', { status });
+            queryBuilder.andWhere("order.status = :status", { status });
         }
         const [orders, total] = await queryBuilder
             .skip((page - 1) * limit)
@@ -195,22 +199,22 @@ let OrdersService = class OrdersService {
     async cancelOrder(id, userId) {
         const order = await this.findOne(id);
         if (order.userId !== userId) {
-            throw new common_1.BadRequestException('You can only cancel your own orders');
+            throw new common_1.BadRequestException("You can only cancel your own orders");
         }
         if (order.status === entities_1.OrderStatus.PENDING_PAYMENT) {
             await this.orderItemRepository.delete({ orderId: id });
             await this.orderRepository.delete(id);
-            return { success: true, message: 'Order cancelled' };
+            return { success: true, message: "Order cancelled" };
         }
         if (![entities_1.OrderStatus.PENDING, entities_1.OrderStatus.CONFIRMED].includes(order.status)) {
-            throw new common_1.BadRequestException('Cannot cancel order in current status');
+            throw new common_1.BadRequestException("Cannot cancel order in current status");
         }
         order.status = entities_1.OrderStatus.CANCELLED;
         for (const item of order.items) {
             await this.inventoryService.releaseStock(item.productId, item.quantity);
         }
         await this.orderRepository.save(order);
-        return { success: true, message: 'Order cancelled' };
+        return { success: true, message: "Order cancelled" };
     }
 };
 exports.OrdersService = OrdersService;

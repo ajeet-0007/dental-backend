@@ -1,11 +1,11 @@
-import { Category } from './category.entity';
-import { ProductVariant } from './product-variant.entity';
-import { Inventory } from './inventory.entity';
-import { Review } from './review.entity';
-import { Cart } from './cart.entity';
-import { OrderItem } from './order-item.entity';
+import { Category } from "./category.entity";
+import { ProductVariant } from "./product-variant.entity";
+import { Inventory } from "./inventory.entity";
+import { Review } from "./review.entity";
+import { Cart } from "./cart.entity";
+import { OrderItem } from "./order-item.entity";
 export declare class Product {
-    id: string;
+    id: number;
     name: string;
     slug: string;
     description: string;

@@ -16,8 +16,8 @@ let Category = class Category {
 };
 exports.Category = Category;
 __decorate([
-    (0, typeorm_1.PrimaryGeneratedColumn)('uuid'),
-    __metadata("design:type", String)
+    (0, typeorm_1.PrimaryGeneratedColumn)(),
+    __metadata("design:type", Number)
 ], Category.prototype, "id", void 0);
 __decorate([
     (0, typeorm_1.Column)(),
@@ -48,8 +48,10 @@ __decorate([
     __metadata("design:type", String)
 ], Category.prototype, "parentId", void 0);
 __decorate([
-    (0, typeorm_1.ManyToOne)(() => Category, (category) => category.children, { nullable: true }),
-    (0, typeorm_1.JoinColumn)({ name: 'parentId' }),
+    (0, typeorm_1.ManyToOne)(() => Category, (category) => category.children, {
+        nullable: true,
+    }),
+    (0, typeorm_1.JoinColumn)({ name: "parentId" }),
     __metadata("design:type", Category)
 ], Category.prototype, "parent", void 0);
 __decorate([
@@ -69,6 +71,6 @@ __decorate([
     __metadata("design:type", Date)
 ], Category.prototype, "updatedAt", void 0);
 exports.Category = Category = __decorate([
-    (0, typeorm_1.Entity)('categories')
+    (0, typeorm_1.Entity)("categories")
 ], Category);
 //# sourceMappingURL=category.entity.js.map

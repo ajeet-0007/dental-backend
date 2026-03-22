@@ -1,7 +1,7 @@
-import { Repository } from 'typeorm';
-import { Order, OrderItem, Cart, Product, ProductVariant, Inventory, Address } from '../../database/entities';
-import { CreateOrderDto, UpdateOrderStatusDto } from './dto/order.dto';
-import { InventoryService } from '../inventory/inventory.service';
+import { Repository } from "typeorm";
+import { Order, OrderItem, Cart, Product, ProductVariant, Inventory, Address } from "../../database/entities";
+import { CreateOrderDto, UpdateOrderStatusDto } from "./dto/order.dto";
+import { InventoryService } from "../inventory/inventory.service";
 export declare class OrdersService {
     private orderRepository;
     private orderItemRepository;

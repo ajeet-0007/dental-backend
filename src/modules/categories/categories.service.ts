@@ -1,9 +1,13 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Category } from '../../database/entities';
-import { CreateCategoryDto, UpdateCategoryDto } from './dto/category.dto';
-import { slugify } from '../../common/utils/slugify';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { Category } from "../../database/entities";
+import { CreateCategoryDto, UpdateCategoryDto } from "./dto/category.dto";
+import { slugify } from "../../common/utils/slugify";
 
 @Injectable()
 export class CategoriesService {
@@ -20,7 +24,7 @@ export class CategoriesService {
     });
 
     if (existingCategory) {
-      throw new ConflictException('Category with this slug already exists');
+      throw new ConflictException("Category with this slug already exists");
     }
 
     const category = this.categoryRepository.create({
@@ -32,12 +36,13 @@ export class CategoriesService {
   }
 
   async findAll(activeOnly = true): Promise<Category[]> {
-    const query = this.categoryRepository.createQueryBuilder('category')
-      .leftJoinAndSelect('category.children', 'children')
-      .orderBy('category.sortOrder', 'ASC');
+    const query = this.categoryRepository
+      .createQueryBuilder("category")
+      .leftJoinAndSelect("category.children", "children")
+      .orderBy("category.sortOrder", "ASC");
 
     if (activeOnly) {
-      query.where('category.isActive = :isActive', { isActive: true });
+      query.where("category.isActive = :isActive", { isActive: true });
     }
 
     return query.getMany();
@@ -45,12 +50,12 @@ export class CategoriesService {
 
   async findOne(id: string): Promise<Category> {
     const category = await this.categoryRepository.findOne({
-      where: { id },
-      relations: ['children', 'products'],
+      where: { id: parseInt(id, 10) },
+      relations: ["children", "products"],
     });
 
     if (!category) {
-      throw new NotFoundException('Category not found');
+      throw new NotFoundException("Category not found");
     }
 
     return category;
@@ -59,11 +64,11 @@ export class CategoriesService {
   async findBySlug(slug: string): Promise<Category> {
     const category = await this.categoryRepository.findOne({
       where: { slug },
-      relations: ['children', 'products'],
+      relations: ["children", "products"],
     });
 
     if (!category) {
-      throw new NotFoundException('Category not found');
+      throw new NotFoundException("Category not found");
     }
 
     return category;
@@ -76,7 +81,8 @@ export class CategoriesService {
     const category = await this.findOne(id);
 
     if (updateCategoryDto.name && updateCategoryDto.name !== category.name) {
-      updateCategoryDto.slug = updateCategoryDto.slug || slugify(updateCategoryDto.name);
+      updateCategoryDto.slug =
+        updateCategoryDto.slug || slugify(updateCategoryDto.name);
     }
 
     Object.assign(category, updateCategoryDto);
@@ -91,7 +97,7 @@ export class CategoriesService {
     });
 
     if (hasChildren > 0) {
-      throw new ConflictException('Cannot delete category with children');
+      throw new ConflictException("Cannot delete category with children");
     }
 
     await this.categoryRepository.remove(category);
@@ -100,8 +106,8 @@ export class CategoriesService {
   async getTree(): Promise<Category[]> {
     const rootCategories = await this.categoryRepository.find({
       where: { parentId: undefined as any },
-      relations: ['children', 'children.children'],
-      order: { sortOrder: 'ASC' },
+      relations: ["children", "children.children"],
+      order: { sortOrder: "ASC" },
     });
 
     return rootCategories;

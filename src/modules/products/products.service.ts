@@ -1,14 +1,18 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Like, ILike } from 'typeorm';
-import { Product, ProductVariant, Inventory } from '../../database/entities';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository, Like, ILike } from "typeorm";
+import { Product, ProductVariant, Inventory } from "../../database/entities";
 import {
   CreateProductDto,
   UpdateProductDto,
   CreateProductVariantDto,
   ProductQueryDto,
-} from './dto/product.dto';
-import { slugify, generateSKU } from '../../common/utils/slugify';
+} from "./dto/product.dto";
+import { slugify, generateSKU } from "../../common/utils/slugify";
 
 @Injectable()
 export class ProductsService {
@@ -29,10 +33,10 @@ export class ProductsService {
     });
 
     if (existingProduct) {
-      throw new ConflictException('Product with this slug already exists');
+      throw new ConflictException("Product with this slug already exists");
     }
 
-    const sku = createProductDto.sku || generateSKU('PROD');
+    const sku = createProductDto.sku || generateSKU("PROD");
 
     const product = this.productRepository.create({
       ...createProductDto,
@@ -45,9 +49,9 @@ export class ProductsService {
     const savedProduct = await this.productRepository.save(product);
 
     await this.inventoryRepository.save({
-      productId: savedProduct.id,
+      productId: savedProduct.id.toString(),
       quantity: 0,
-      warehouseLocation: 'default',
+      warehouseLocation: "default",
     });
 
     return savedProduct;
@@ -63,41 +67,41 @@ export class ProductsService {
       isFeatured,
       page = 1,
       limit = 10,
-      sortBy = 'createdAt',
-      sortOrder = 'DESC',
+      sortBy = "createdAt",
+      sortOrder = "DESC",
     } = query;
 
     const queryBuilder = this.productRepository
-      .createQueryBuilder('product')
-      .leftJoinAndSelect('product.category', 'category')
-      .leftJoinAndSelect('product.variants', 'variants')
-      .leftJoinAndSelect('product.inventories', 'inventories');
+      .createQueryBuilder("product")
+      .leftJoinAndSelect("product.category", "category")
+      .leftJoinAndSelect("product.variants", "variants")
+      .leftJoinAndSelect("product.inventories", "inventories");
 
     if (search) {
       queryBuilder.andWhere(
-        '(product.name LIKE :search OR product.description LIKE :search OR product.sku LIKE :search)',
+        "(product.name LIKE :search OR product.description LIKE :search OR product.sku LIKE :search)",
         { search: `%${search}%` },
       );
     }
 
     if (category) {
-      queryBuilder.andWhere('category.slug = :category', { category });
+      queryBuilder.andWhere("category.slug = :category", { category });
     }
 
     if (brand) {
-      queryBuilder.andWhere('product.brand = :brand', { brand });
+      queryBuilder.andWhere("product.brand = :brand", { brand });
     }
 
     if (minPrice) {
-      queryBuilder.andWhere('product.sellingPrice >= :minPrice', { minPrice });
+      queryBuilder.andWhere("product.sellingPrice >= :minPrice", { minPrice });
     }
 
     if (maxPrice) {
-      queryBuilder.andWhere('product.sellingPrice <= :maxPrice', { maxPrice });
+      queryBuilder.andWhere("product.sellingPrice <= :maxPrice", { maxPrice });
     }
 
     if (isFeatured !== undefined) {
-      queryBuilder.andWhere('product.isFeatured = :isFeatured', { isFeatured });
+      queryBuilder.andWhere("product.isFeatured = :isFeatured", { isFeatured });
     }
 
     queryBuilder
@@ -118,12 +122,12 @@ export class ProductsService {
 
   async findOne(id: string): Promise<Product> {
     const product = await this.productRepository.findOne({
-      where: { id },
-      relations: ['category', 'variants', 'inventories', 'reviews'],
+      where: { id: +id },
+      relations: ["category", "variants", "inventories", "reviews"],
     });
 
     if (!product) {
-      throw new NotFoundException('Product not found');
+      throw new NotFoundException("Product not found");
     }
 
     return product;
@@ -132,11 +136,17 @@ export class ProductsService {
   async findBySlug(slug: string): Promise<Product> {
     const product = await this.productRepository.findOne({
       where: { slug },
-      relations: ['category', 'variants', 'inventories', 'reviews', 'reviews.user'],
+      relations: [
+        "category",
+        "variants",
+        "inventories",
+        "reviews",
+        "reviews.user",
+      ],
     });
 
     if (!product) {
-      throw new NotFoundException('Product not found');
+      throw new NotFoundException("Product not found");
     }
 
     return product;
@@ -149,7 +159,8 @@ export class ProductsService {
     const product = await this.findOne(id);
 
     if (updateProductDto.name && updateProductDto.name !== product.name) {
-      updateProductDto.slug = updateProductDto.slug || slugify(updateProductDto.name);
+      updateProductDto.slug =
+        updateProductDto.slug || slugify(updateProductDto.name);
     }
 
     Object.assign(product, updateProductDto);
@@ -166,7 +177,7 @@ export class ProductsService {
   ): Promise<ProductVariant> {
     const product = await this.findOne(createVariantDto.productId);
 
-    const sku = createVariantDto.sku || generateSKU('VAR');
+    const sku = createVariantDto.sku || generateSKU("VAR");
 
     const variant = this.productVariantRepository.create({
       ...createVariantDto,
@@ -181,9 +192,9 @@ export class ProductsService {
   async getFeaturedProducts(limit = 10): Promise<Product[]> {
     return this.productRepository.find({
       where: { isFeatured: true, isActive: true },
-      relations: ['category', 'inventories'],
+      relations: ["category", "inventories"],
       take: limit,
-      order: { createdAt: 'DESC' },
+      order: { createdAt: "DESC" },
     });
   }
 
@@ -195,17 +206,17 @@ export class ProductsService {
         categoryId: product.categoryId,
         isActive: true,
       },
-      relations: ['category', 'inventories'],
+      relations: ["category", "inventories"],
       take: limit,
-      order: { createdAt: 'DESC' },
+      order: { createdAt: "DESC" },
     });
   }
 
   async getAllBrands(): Promise<string[]> {
     const result = await this.productRepository
-      .createQueryBuilder('product')
-      .select('DISTINCT product.brand', 'brand')
-      .where('product.brand IS NOT NULL')
+      .createQueryBuilder("product")
+      .select("DISTINCT product.brand", "brand")
+      .where("product.brand IS NOT NULL")
       .getRawMany();
 
     return result.map((r) => r.brand).filter(Boolean);

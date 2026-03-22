@@ -1,6 +1,6 @@
-import { Repository } from 'typeorm';
-import { Category } from '../../database/entities';
-import { CreateCategoryDto, UpdateCategoryDto } from './dto/category.dto';
+import { Repository } from "typeorm";
+import { Category } from "../../database/entities";
+import { CreateCategoryDto, UpdateCategoryDto } from "./dto/category.dto";
 export declare class CategoriesService {
     private categoryRepository;
     constructor(categoryRepository: Repository<Category>);

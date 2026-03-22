@@ -30,9 +30,9 @@ let ProductsService = class ProductsService {
             where: { slug },
         });
         if (existingProduct) {
-            throw new common_1.ConflictException('Product with this slug already exists');
+            throw new common_1.ConflictException("Product with this slug already exists");
         }
-        const sku = createProductDto.sku || (0, slugify_1.generateSKU)('PROD');
+        const sku = createProductDto.sku || (0, slugify_1.generateSKU)("PROD");
         const product = this.productRepository.create({
             ...createProductDto,
             slug,
@@ -42,36 +42,36 @@ let ProductsService = class ProductsService {
         });
         const savedProduct = await this.productRepository.save(product);
         await this.inventoryRepository.save({
-            productId: savedProduct.id,
+            productId: savedProduct.id.toString(),
             quantity: 0,
-            warehouseLocation: 'default',
+            warehouseLocation: "default",
         });
         return savedProduct;
     }
     async findAll(query) {
-        const { search, category, brand, minPrice, maxPrice, isFeatured, page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'DESC', } = query;
+        const { search, category, brand, minPrice, maxPrice, isFeatured, page = 1, limit = 10, sortBy = "createdAt", sortOrder = "DESC", } = query;
         const queryBuilder = this.productRepository
-            .createQueryBuilder('product')
-            .leftJoinAndSelect('product.category', 'category')
-            .leftJoinAndSelect('product.variants', 'variants')
-            .leftJoinAndSelect('product.inventories', 'inventories');
+            .createQueryBuilder("product")
+            .leftJoinAndSelect("product.category", "category")
+            .leftJoinAndSelect("product.variants", "variants")
+            .leftJoinAndSelect("product.inventories", "inventories");
         if (search) {
-            queryBuilder.andWhere('(product.name LIKE :search OR product.description LIKE :search OR product.sku LIKE :search)', { search: `%${search}%` });
+            queryBuilder.andWhere("(product.name LIKE :search OR product.description LIKE :search OR product.sku LIKE :search)", { search: `%${search}%` });
         }
         if (category) {
-            queryBuilder.andWhere('category.slug = :category', { category });
+            queryBuilder.andWhere("category.slug = :category", { category });
         }
         if (brand) {
-            queryBuilder.andWhere('product.brand = :brand', { brand });
+            queryBuilder.andWhere("product.brand = :brand", { brand });
         }
         if (minPrice) {
-            queryBuilder.andWhere('product.sellingPrice >= :minPrice', { minPrice });
+            queryBuilder.andWhere("product.sellingPrice >= :minPrice", { minPrice });
         }
         if (maxPrice) {
-            queryBuilder.andWhere('product.sellingPrice <= :maxPrice', { maxPrice });
+            queryBuilder.andWhere("product.sellingPrice <= :maxPrice", { maxPrice });
         }
         if (isFeatured !== undefined) {
-            queryBuilder.andWhere('product.isFeatured = :isFeatured', { isFeatured });
+            queryBuilder.andWhere("product.isFeatured = :isFeatured", { isFeatured });
         }
         queryBuilder
             .orderBy(`product.${sortBy}`, sortOrder)
@@ -88,28 +88,35 @@ let ProductsService = class ProductsService {
     }
     async findOne(id) {
         const product = await this.productRepository.findOne({
-            where: { id },
-            relations: ['category', 'variants', 'inventories', 'reviews'],
+            where: { id: +id },
+            relations: ["category", "variants", "inventories", "reviews"],
         });
         if (!product) {
-            throw new common_1.NotFoundException('Product not found');
+            throw new common_1.NotFoundException("Product not found");
         }
         return product;
     }
     async findBySlug(slug) {
         const product = await this.productRepository.findOne({
             where: { slug },
-            relations: ['category', 'variants', 'inventories', 'reviews', 'reviews.user'],
+            relations: [
+                "category",
+                "variants",
+                "inventories",
+                "reviews",
+                "reviews.user",
+            ],
         });
         if (!product) {
-            throw new common_1.NotFoundException('Product not found');
+            throw new common_1.NotFoundException("Product not found");
         }
         return product;
     }
     async update(id, updateProductDto) {
         const product = await this.findOne(id);
         if (updateProductDto.name && updateProductDto.name !== product.name) {
-            updateProductDto.slug = updateProductDto.slug || (0, slugify_1.slugify)(updateProductDto.name);
+            updateProductDto.slug =
+                updateProductDto.slug || (0, slugify_1.slugify)(updateProductDto.name);
         }
         Object.assign(product, updateProductDto);
         return this.productRepository.save(product);
@@ -120,7 +127,7 @@ let ProductsService = class ProductsService {
     }
     async createVariant(createVariantDto) {
         const product = await this.findOne(createVariantDto.productId);
-        const sku = createVariantDto.sku || (0, slugify_1.generateSKU)('VAR');
+        const sku = createVariantDto.sku || (0, slugify_1.generateSKU)("VAR");
         const variant = this.productVariantRepository.create({
             ...createVariantDto,
             sku,
@@ -132,9 +139,9 @@ let ProductsService = class ProductsService {
     async getFeaturedProducts(limit = 10) {
         return this.productRepository.find({
             where: { isFeatured: true, isActive: true },
-            relations: ['category', 'inventories'],
+            relations: ["category", "inventories"],
             take: limit,
-            order: { createdAt: 'DESC' },
+            order: { createdAt: "DESC" },
         });
     }
     async getRelatedProducts(productId, limit = 10) {
@@ -144,16 +151,16 @@ let ProductsService = class ProductsService {
                 categoryId: product.categoryId,
                 isActive: true,
             },
-            relations: ['category', 'inventories'],
+            relations: ["category", "inventories"],
             take: limit,
-            order: { createdAt: 'DESC' },
+            order: { createdAt: "DESC" },
         });
     }
     async getAllBrands() {
         const result = await this.productRepository
-            .createQueryBuilder('product')
-            .select('DISTINCT product.brand', 'brand')
-            .where('product.brand IS NOT NULL')
+            .createQueryBuilder("product")
+            .select("DISTINCT product.brand", "brand")
+            .where("product.brand IS NOT NULL")
             .getRawMany();
         return result.map((r) => r.brand).filter(Boolean);
     }

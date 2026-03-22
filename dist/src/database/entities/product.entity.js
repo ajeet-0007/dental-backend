@@ -21,8 +21,8 @@ let Product = class Product {
 };
 exports.Product = Product;
 __decorate([
-    (0, typeorm_1.PrimaryGeneratedColumn)('uuid'),
-    __metadata("design:type", String)
+    (0, typeorm_1.PrimaryGeneratedColumn)(),
+    __metadata("design:type", Number)
 ], Product.prototype, "id", void 0);
 __decorate([
     (0, typeorm_1.Column)(),
@@ -33,11 +33,11 @@ __decorate([
     __metadata("design:type", String)
 ], Product.prototype, "slug", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ type: 'text', nullable: true }),
+    (0, typeorm_1.Column)({ type: "text", nullable: true }),
     __metadata("design:type", String)
 ], Product.prototype, "description", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ type: 'text', nullable: true }),
+    (0, typeorm_1.Column)({ type: "text", nullable: true }),
     __metadata("design:type", String)
 ], Product.prototype, "shortDescription", void 0);
 __decorate([
@@ -61,7 +61,7 @@ __decorate([
     __metadata("design:type", String)
 ], Product.prototype, "brand", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ default: 'unit' }),
+    (0, typeorm_1.Column)({ default: "unit" }),
     __metadata("design:type", String)
 ], Product.prototype, "unit", void 0);
 __decorate([
@@ -69,7 +69,7 @@ __decorate([
     __metadata("design:type", Number)
 ], Product.prototype, "minOrderQuantity", void 0);
 __decorate([
-    (0, typeorm_1.Column)('simple-array', { nullable: true }),
+    (0, typeorm_1.Column)("json", { nullable: true }),
     __metadata("design:type", Array)
 ], Product.prototype, "images", void 0);
 __decorate([
@@ -94,7 +94,7 @@ __decorate([
 ], Product.prototype, "categoryId", void 0);
 __decorate([
     (0, typeorm_1.ManyToOne)(() => category_entity_1.Category, (category) => category.products),
-    (0, typeorm_1.JoinColumn)({ name: 'categoryId' }),
+    (0, typeorm_1.JoinColumn)({ name: "categoryId" }),
     __metadata("design:type", category_entity_1.Category)
 ], Product.prototype, "category", void 0);
 __decorate([
@@ -126,6 +126,6 @@ __decorate([
     __metadata("design:type", Date)
 ], Product.prototype, "updatedAt", void 0);
 exports.Product = Product = __decorate([
-    (0, typeorm_1.Entity)('products')
+    (0, typeorm_1.Entity)("products")
 ], Product);
 //# sourceMappingURL=product.entity.js.map

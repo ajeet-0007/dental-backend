@@ -1,6 +1,6 @@
-import { Repository } from 'typeorm';
-import { Product, ProductVariant, Inventory } from '../../database/entities';
-import { CreateProductDto, UpdateProductDto, CreateProductVariantDto, ProductQueryDto } from './dto/product.dto';
+import { Repository } from "typeorm";
+import { Product, ProductVariant, Inventory } from "../../database/entities";
+import { CreateProductDto, UpdateProductDto, CreateProductVariantDto, ProductQueryDto } from "./dto/product.dto";
 export declare class ProductsService {
     private productRepository;
     private productVariantRepository;

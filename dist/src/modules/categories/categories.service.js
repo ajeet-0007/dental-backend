@@ -28,7 +28,7 @@ let CategoriesService = class CategoriesService {
             where: { slug },
         });
         if (existingCategory) {
-            throw new common_1.ConflictException('Category with this slug already exists');
+            throw new common_1.ConflictException("Category with this slug already exists");
         }
         const category = this.categoryRepository.create({
             ...createCategoryDto,
@@ -37,38 +37,40 @@ let CategoriesService = class CategoriesService {
         return this.categoryRepository.save(category);
     }
     async findAll(activeOnly = true) {
-        const query = this.categoryRepository.createQueryBuilder('category')
-            .leftJoinAndSelect('category.children', 'children')
-            .orderBy('category.sortOrder', 'ASC');
+        const query = this.categoryRepository
+            .createQueryBuilder("category")
+            .leftJoinAndSelect("category.children", "children")
+            .orderBy("category.sortOrder", "ASC");
         if (activeOnly) {
-            query.where('category.isActive = :isActive', { isActive: true });
+            query.where("category.isActive = :isActive", { isActive: true });
         }
         return query.getMany();
     }
     async findOne(id) {
         const category = await this.categoryRepository.findOne({
-            where: { id },
-            relations: ['children', 'products'],
+            where: { id: parseInt(id, 10) },
+            relations: ["children", "products"],
         });
         if (!category) {
-            throw new common_1.NotFoundException('Category not found');
+            throw new common_1.NotFoundException("Category not found");
         }
         return category;
     }
     async findBySlug(slug) {
         const category = await this.categoryRepository.findOne({
             where: { slug },
-            relations: ['children', 'products'],
+            relations: ["children", "products"],
         });
         if (!category) {
-            throw new common_1.NotFoundException('Category not found');
+            throw new common_1.NotFoundException("Category not found");
         }
         return category;
     }
     async update(id, updateCategoryDto) {
         const category = await this.findOne(id);
         if (updateCategoryDto.name && updateCategoryDto.name !== category.name) {
-            updateCategoryDto.slug = updateCategoryDto.slug || (0, slugify_1.slugify)(updateCategoryDto.name);
+            updateCategoryDto.slug =
+                updateCategoryDto.slug || (0, slugify_1.slugify)(updateCategoryDto.name);
         }
         Object.assign(category, updateCategoryDto);
         return this.categoryRepository.save(category);
@@ -79,15 +81,15 @@ let CategoriesService = class CategoriesService {
             where: { parentId: id },
         });
         if (hasChildren > 0) {
-            throw new common_1.ConflictException('Cannot delete category with children');
+            throw new common_1.ConflictException("Cannot delete category with children");
         }
         await this.categoryRepository.remove(category);
     }
     async getTree() {
         const rootCategories = await this.categoryRepository.find({
             where: { parentId: undefined },
-            relations: ['children', 'children.children'],
-            order: { sortOrder: 'ASC' },
+            relations: ["children", "children.children"],
+            order: { sortOrder: "ASC" },
         });
         return rootCategories;
     }

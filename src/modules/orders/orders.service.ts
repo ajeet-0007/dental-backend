@@ -1,6 +1,10 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
 import {
   Order,
   OrderItem,
@@ -10,10 +14,10 @@ import {
   Inventory,
   Address,
   OrderStatus,
-} from '../../database/entities';
-import { CreateOrderDto, UpdateOrderStatusDto } from './dto/order.dto';
-import { generateOrderNumber } from '../../common/utils/slugify';
-import { InventoryService } from '../inventory/inventory.service';
+} from "../../database/entities";
+import { CreateOrderDto, UpdateOrderStatusDto } from "./dto/order.dto";
+import { generateOrderNumber } from "../../common/utils/slugify";
+import { InventoryService } from "../inventory/inventory.service";
 
 @Injectable()
 export class OrdersService {
@@ -38,11 +42,11 @@ export class OrdersService {
   async create(userId: string, createOrderDto: CreateOrderDto): Promise<Order> {
     const cartItems = await this.cartRepository.find({
       where: { userId },
-      relations: ['product', 'productVariant'],
+      relations: ["product", "productVariant"],
     });
 
     if (cartItems.length === 0) {
-      throw new BadRequestException('Cart is empty');
+      throw new BadRequestException("Cart is empty");
     }
 
     let shippingAddress = createOrderDto.shippingAddress;
@@ -53,10 +57,10 @@ export class OrdersService {
       });
 
       if (!address) {
-        throw new NotFoundException('Address not found');
+        throw new NotFoundException("Address not found");
       }
 
-      shippingAddress = `${address.name}, ${address.addressLine1}, ${address.addressLine2 || ''}, ${address.city}, ${address.state} - ${address.pincode}`;
+      shippingAddress = `${address.name}, ${address.addressLine1}, ${address.addressLine2 || ""}, ${address.city}, ${address.state} - ${address.pincode}`;
     }
 
     let subtotal = 0;
@@ -75,25 +79,27 @@ export class OrdersService {
         productId: String(product.id),
         productVariantId: variant?.id ? String(variant.id) : undefined,
         productName: product.name,
-        productImage: variant?.image || product.images?.[0] || '',
-        sku: variant?.sku || product.sku || '',
+        productImage: variant?.image || product.images?.[0] || "",
+        sku: variant?.sku || product.sku || "",
         quantity: cartItem.quantity,
         price: product.price,
         sellingPrice: price,
-        taxAmount: 0,
+        taxAmount: Math.round(itemTotal * 0.18 * 100) / 100,
         discountAmount: 0,
-        totalAmount: itemTotal,
+        totalAmount: itemTotal + Math.round(itemTotal * 0.18 * 100) / 100,
       });
     }
 
     const shippingAmount = subtotal > 500 ? 0 : 50;
-    const totalAmount = subtotal + shippingAmount;
+    const taxAmount = Math.round(subtotal * 0.18 * 100) / 100;
+    const totalAmount = subtotal + shippingAmount + taxAmount;
 
     const order = this.orderRepository.create({
       orderNumber: generateOrderNumber(),
       userId,
       status: OrderStatus.PENDING_PAYMENT,
       subtotal,
+      taxAmount,
       shippingAmount,
       discountAmount: 0,
       totalAmount,
@@ -123,18 +129,20 @@ export class OrdersService {
     limit = 10,
   ): Promise<{ orders: any[]; total: number }> {
     const queryBuilder = this.orderRepository
-      .createQueryBuilder('order')
-      .leftJoinAndSelect('order.items', 'items')
-      .where('order.userId = :userId', { userId })
-      .andWhere('order.status != :failedStatus', { failedStatus: OrderStatus.PAYMENT_FAILED })
-      .orderBy('order.createdAt', 'DESC')
+      .createQueryBuilder("order")
+      .leftJoinAndSelect("order.items", "items")
+      .where("order.userId = :userId", { userId })
+      .andWhere("order.status != :failedStatus", {
+        failedStatus: OrderStatus.PAYMENT_FAILED,
+      })
+      .orderBy("order.createdAt", "DESC")
       .skip((page - 1) * limit)
       .take(limit);
 
     const [orders, total] = await queryBuilder.getManyAndCount();
 
     return {
-      orders: orders.map(order => ({
+      orders: orders.map((order) => ({
         id: order.id,
         orderNumber: order.orderNumber,
         status: order.status,
@@ -144,19 +152,20 @@ export class OrdersService {
         discountAmount: order.discountAmount,
         shippingAddress: order.shippingAddress,
         createdAt: order.createdAt,
-        items: order.items?.map(item => ({
-          id: item.id,
-          productId: item.productId,
-          productVariantId: item.productVariantId,
-          productName: item.productName,
-          productImage: item.productImage,
-          quantity: item.quantity,
-          price: item.price,
-          sellingPrice: item.sellingPrice,
-          totalAmount: item.totalAmount,
-        })) || [],
+        items:
+          order.items?.map((item) => ({
+            id: item.id,
+            productId: item.productId,
+            productVariantId: item.productVariantId,
+            productName: item.productName,
+            productImage: item.productImage,
+            quantity: item.quantity,
+            price: item.price,
+            sellingPrice: item.sellingPrice,
+            totalAmount: item.totalAmount,
+          })) || [],
       })),
-      total
+      total,
     };
   }
 
@@ -164,17 +173,17 @@ export class OrdersService {
     const order = await this.orderRepository.findOne({
       where: { id },
       relations: [
-        'items',
-        'items.product',
-        'items.product.category',
-        'payments',
-        'shipments',
-        'user',
+        "items",
+        "items.product",
+        "items.product.category",
+        "payments",
+        "shipments",
+        "user",
       ],
     });
 
     if (!order) {
-      throw new NotFoundException('Order not found');
+      throw new NotFoundException("Order not found");
     }
 
     return order;
@@ -183,11 +192,11 @@ export class OrdersService {
   async findByOrderNumber(orderNumber: string, userId: string): Promise<Order> {
     const order = await this.orderRepository.findOne({
       where: { orderNumber, userId },
-      relations: ['items', 'items.product', 'payments', 'shipments'],
+      relations: ["items", "items.product", "payments", "shipments"],
     });
 
     if (!order) {
-      throw new NotFoundException('Order not found');
+      throw new NotFoundException("Order not found");
     }
 
     return order;
@@ -199,8 +208,12 @@ export class OrdersService {
   ): Promise<Order> {
     const order = await this.findOne(id);
 
-    if (!Object.values(OrderStatus).includes(updateOrderStatusDto.status as OrderStatus)) {
-      throw new BadRequestException('Invalid order status');
+    if (
+      !Object.values(OrderStatus).includes(
+        updateOrderStatusDto.status as OrderStatus,
+      )
+    ) {
+      throw new BadRequestException("Invalid order status");
     }
 
     order.status = updateOrderStatusDto.status as OrderStatus;
@@ -223,13 +236,13 @@ export class OrdersService {
     status?: string,
   ): Promise<{ orders: Order[]; total: number }> {
     const queryBuilder = this.orderRepository
-      .createQueryBuilder('order')
-      .leftJoinAndSelect('order.items', 'items')
-      .leftJoinAndSelect('order.user', 'user')
-      .orderBy('order.createdAt', 'DESC');
+      .createQueryBuilder("order")
+      .leftJoinAndSelect("order.items", "items")
+      .leftJoinAndSelect("order.user", "user")
+      .orderBy("order.createdAt", "DESC");
 
     if (status) {
-      queryBuilder.andWhere('order.status = :status', { status });
+      queryBuilder.andWhere("order.status = :status", { status });
     }
 
     const [orders, total] = await queryBuilder
@@ -244,21 +257,24 @@ export class OrdersService {
     return this.findOne(id);
   }
 
-  async cancelOrder(id: string, userId: string): Promise<{ success: boolean; message: string }> {
+  async cancelOrder(
+    id: string,
+    userId: string,
+  ): Promise<{ success: boolean; message: string }> {
     const order = await this.findOne(id);
 
     if (order.userId !== userId) {
-      throw new BadRequestException('You can only cancel your own orders');
+      throw new BadRequestException("You can only cancel your own orders");
     }
 
     if (order.status === OrderStatus.PENDING_PAYMENT) {
       await this.orderItemRepository.delete({ orderId: id });
       await this.orderRepository.delete(id);
-      return { success: true, message: 'Order cancelled' };
+      return { success: true, message: "Order cancelled" };
     }
 
     if (![OrderStatus.PENDING, OrderStatus.CONFIRMED].includes(order.status)) {
-      throw new BadRequestException('Cannot cancel order in current status');
+      throw new BadRequestException("Cannot cancel order in current status");
     }
 
     order.status = OrderStatus.CANCELLED;
@@ -268,6 +284,6 @@ export class OrdersService {
     }
 
     await this.orderRepository.save(order);
-    return { success: true, message: 'Order cancelled' };
+    return { success: true, message: "Order cancelled" };
   }
 }

@@ -7,13 +7,13 @@ import {
   ManyToOne,
   OneToMany,
   JoinColumn,
-} from 'typeorm';
-import { Product } from './product.entity';
+} from "typeorm";
+import { Product } from "./product.entity";
 
-@Entity('categories')
+@Entity("categories")
 export class Category {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+  @PrimaryGeneratedColumn()
+  id: number;
 
   @Column()
   name: string;
@@ -36,8 +36,10 @@ export class Category {
   @Column({ nullable: true })
   parentId: string;
 
-  @ManyToOne(() => Category, (category) => category.children, { nullable: true })
-  @JoinColumn({ name: 'parentId' })
+  @ManyToOne(() => Category, (category) => category.children, {
+    nullable: true,
+  })
+  @JoinColumn({ name: "parentId" })
   parent: Category;
 
   @OneToMany(() => Category, (category) => category.parent)
