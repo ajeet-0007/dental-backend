@@ -39,12 +39,15 @@ import { HealthModule } from "./modules/health/health.module";
         entities: [__dirname + "/database/entities/*.entity{.ts,.js}"],
         synchronize: false,
         logging: configService.get("NODE_ENV") === "development",
+        connectTimeout: 30000,
+        acquireTimeout: 30000,
         extra: {
           connectionLimit: 10,
         },
       }),
       inject: [ConfigService],
     }),
+    HealthModule,
     AuthModule,
     UsersModule,
     AddressesModule,
@@ -57,7 +60,6 @@ import { HealthModule } from "./modules/health/health.module";
     ShippingModule,
     AdminModule,
     ImageKitModule,
-    HealthModule,
   ],
 })
 export class AppModule {}

@@ -51,12 +51,15 @@ exports.AppModule = AppModule = __decorate([
                     entities: [__dirname + "/database/entities/*.entity{.ts,.js}"],
                     synchronize: false,
                     logging: configService.get("NODE_ENV") === "development",
+                    connectTimeout: 30000,
+                    acquireTimeout: 30000,
                     extra: {
                         connectionLimit: 10,
                     },
                 }),
                 inject: [config_1.ConfigService],
             }),
+            health_module_1.HealthModule,
             auth_module_1.AuthModule,
             users_module_1.UsersModule,
             addresses_module_1.AddressesModule,
@@ -69,7 +72,6 @@ exports.AppModule = AppModule = __decorate([
             shipping_module_1.ShippingModule,
             admin_module_1.AdminModule,
             imagekit_module_1.ImageKitModule,
-            health_module_1.HealthModule,
         ],
     })
 ], AppModule);

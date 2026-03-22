@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Dentalkart Backend API",
   "scripts": {
-    "build": "nest build",
+    "build": "npx @nestjs/cli build",
     "format": "prettier --write \"src/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
