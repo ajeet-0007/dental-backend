@@ -4,10 +4,12 @@ import { SwaggerModule, DocumentBuilder } from "@nestjs/swagger";
 import { AppModule } from "./app.module";
 
 async function bootstrap() {
+  console.log("Starting Dentalkart Backend...");
+
   const app = await NestFactory.create(AppModule);
 
   app.enableCors({
-    origin: ["http://localhost:5173", "http://localhost:5174"],
+    origin: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
     credentials: true,
   });
@@ -36,8 +38,13 @@ async function bootstrap() {
 
   const port = process.env.PORT || 3000;
   const host = process.env.HOST || "0.0.0.0";
+
   await app.listen(port, host);
-  console.log(`Application is running on: http://${host}:${port}`);
-  console.log(`Swagger docs: http://${host}:${port}/api/docs`);
+  console.log(`✅ Dentalkart Backend started successfully!`);
+  console.log(`🌐 Server running on http://${host}:${port}`);
+  console.log(`📚 API Docs available at http://${host}:${port}/api/docs`);
 }
-bootstrap();
+bootstrap().catch((err) => {
+  console.error("❌ Failed to start server:", err);
+  process.exit(1);
+});

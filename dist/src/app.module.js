@@ -23,6 +23,7 @@ const payments_module_1 = require("./modules/payments/payments.module");
 const shipping_module_1 = require("./modules/shipping/shipping.module");
 const admin_module_1 = require("./modules/admin/admin.module");
 const imagekit_module_1 = require("./modules/imagekit/imagekit.module");
+const health_module_1 = require("./modules/health/health.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -68,6 +69,7 @@ exports.AppModule = AppModule = __decorate([
             shipping_module_1.ShippingModule,
             admin_module_1.AdminModule,
             imagekit_module_1.ImageKitModule,
+            health_module_1.HealthModule,
         ],
     })
 ], AppModule);
