@@ -1,0 +1,34 @@
+import { Category } from './category.entity';
+import { ProductVariant } from './product-variant.entity';
+import { Inventory } from './inventory.entity';
+import { Review } from './review.entity';
+import { Cart } from './cart.entity';
+import { OrderItem } from './order-item.entity';
+export declare class Product {
+    id: string;
+    name: string;
+    slug: string;
+    description: string;
+    shortDescription: string;
+    sku: string;
+    price: number;
+    sellingPrice: number;
+    mrp: number;
+    brand: string;
+    unit: string;
+    minOrderQuantity: number;
+    images: string[];
+    isActive: boolean;
+    isFeatured: boolean;
+    isReturnable: boolean;
+    returnDays: number;
+    categoryId: string;
+    category: Category;
+    variants: ProductVariant[];
+    inventories: Inventory[];
+    reviews: Review[];
+    cartItems: Cart[];
+    orderItems: OrderItem[];
+    createdAt: Date;
+    updatedAt: Date;
+}

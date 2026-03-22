@@ -1,0 +1,51 @@
+import { Module } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { AuthModule } from './modules/auth/auth.module';
+import { UsersModule } from './modules/users/users.module';
+import { AddressesModule } from './modules/addresses/addresses.module';
+import { CategoriesModule } from './modules/categories/categories.module';
+import { ProductsModule } from './modules/products/products.module';
+import { InventoryModule } from './modules/inventory/inventory.module';
+import { CartModule } from './modules/cart/cart.module';
+import { OrdersModule } from './modules/orders/orders.module';
+import { PaymentsModule } from './modules/payments/payments.module';
+import { ShippingModule } from './modules/shipping/shipping.module';
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: '.env',
+    }),
+    TypeOrmModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        type: 'mysql',
+        host: configService.get('MYSQL_DATABASE_HOST'),
+        port: configService.get('MYSQL_DATABASE_PORT'),
+        username: configService.get('MYSQL_DATABASE_USER'),
+        password: configService.get('MYSQL_DATABASE_PASSWORD'),
+        database: configService.get('MYSQL_DATABASE_NAME'),
+        entities: [__dirname + '/database/entities/*.entity{.ts,.js}'],
+        synchronize: false,
+        logging: configService.get('NODE_ENV') === 'development',
+        extra: {
+          connectionLimit: 10,
+        },
+      }),
+      inject: [ConfigService],
+    }),
+    AuthModule,
+    UsersModule,
+    AddressesModule,
+    CategoriesModule,
+    ProductsModule,
+    InventoryModule,
+    CartModule,
+    OrdersModule,
+    PaymentsModule,
+    ShippingModule,
+  ],
+})
+export class AppModule {}
