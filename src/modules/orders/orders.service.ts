@@ -4,7 +4,7 @@ import {
   BadRequestException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
+import { Repository, DataSource } from "typeorm";
 import {
   Order,
   OrderItem,
@@ -14,6 +14,9 @@ import {
   Inventory,
   Address,
   OrderStatus,
+  Payment,
+  PaymentStatus,
+  PaymentMethod,
 } from "../../database/entities";
 import { CreateOrderDto, UpdateOrderStatusDto } from "./dto/order.dto";
 import { generateOrderNumber } from "../../common/utils/slugify";
@@ -36,7 +39,10 @@ export class OrdersService {
     private inventoryRepository: Repository<Inventory>,
     @InjectRepository(Address)
     private addressRepository: Repository<Address>,
+    @InjectRepository(Payment)
+    private paymentRepository: Repository<Payment>,
     private inventoryService: InventoryService,
+    private dataSource: DataSource,
   ) {}
 
   async create(userId: string, createOrderDto: CreateOrderDto): Promise<Order> {
@@ -93,34 +99,65 @@ export class OrdersService {
     const shippingAmount = subtotal > 500 ? 0 : 50;
     const taxAmount = Math.round(subtotal * 0.18 * 100) / 100;
     const totalAmount = subtotal + shippingAmount + taxAmount;
+    const isCOD = createOrderDto.paymentMethod === "cod";
 
-    const order = this.orderRepository.create({
-      orderNumber: generateOrderNumber(),
-      userId,
-      status: OrderStatus.PENDING_PAYMENT,
-      subtotal,
-      taxAmount,
-      shippingAmount,
-      discountAmount: 0,
-      totalAmount,
-      shippingAddress,
-      customerNote: createOrderDto.customerNote,
-      couponCode: createOrderDto.couponCode,
-    });
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    const savedOrder = await this.orderRepository.save(order);
-
-    const orderItemsEntities = orderItems.map((item) => {
-      return this.orderItemRepository.create({
-        ...item,
-        orderId: savedOrder.id,
+    try {
+      const order = this.orderRepository.create({
+        orderNumber: generateOrderNumber(),
+        userId,
+        status: isCOD ? OrderStatus.CONFIRMED : OrderStatus.PENDING_PAYMENT,
+        subtotal,
+        taxAmount,
+        shippingAmount,
+        discountAmount: 0,
+        totalAmount,
+        shippingAddress,
+        customerNote: createOrderDto.customerNote,
+        couponCode: createOrderDto.couponCode,
       });
-    });
 
-    await this.orderItemRepository.save(orderItemsEntities);
-    await this.cartRepository.delete({ userId });
+      const savedOrder = await queryRunner.manager.save(order);
 
-    return this.findOne(savedOrder.id);
+      const orderItemsEntities = orderItems.map((item) => {
+        return this.orderItemRepository.create({
+          ...item,
+          orderId: savedOrder.id,
+        });
+      });
+
+      await queryRunner.manager.save(orderItemsEntities);
+
+      if (isCOD) {
+        const payment = this.paymentRepository.create({
+          orderId: savedOrder.id,
+          amount: totalAmount,
+          status: PaymentStatus.PENDING,
+          method: PaymentMethod.COD,
+        });
+        await queryRunner.manager.save(payment);
+
+        for (const item of orderItems) {
+          await this.inventoryService.reserveStock(
+            item.productId!,
+            item.quantity!,
+          );
+        }
+      }
+
+      await queryRunner.commitTransaction();
+      await this.cartRepository.delete({ userId });
+
+      return this.findOne(savedOrder.id);
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   async findAll(

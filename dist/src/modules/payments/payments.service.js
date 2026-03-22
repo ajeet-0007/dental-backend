@@ -27,7 +27,7 @@ let PaymentsService = class PaymentsService {
         this.orderItemRepository = orderItemRepository;
         this.configService = configService;
         this.inventoryService = inventoryService;
-        const secretKey = this.configService.get('STRIPE_SECRET_KEY');
+        const secretKey = this.configService.get("STRIPE_SECRET_KEY");
         if (secretKey) {
             this.stripe = new stripe_1.default(secretKey);
         }
@@ -37,28 +37,28 @@ let PaymentsService = class PaymentsService {
             where: { id: createPaymentDto.orderId, userId },
         });
         if (!order) {
-            throw new common_1.NotFoundException('Order not found');
+            throw new common_1.NotFoundException("Order not found");
         }
         if (order.status === entities_1.OrderStatus.CANCELLED) {
-            throw new common_1.BadRequestException('Cannot payment for cancelled order');
+            throw new common_1.BadRequestException("Cannot payment for cancelled order");
         }
-        const frontendUrl = this.configService.get('FRONTEND_URL') || 'http://localhost:5173';
+        const frontendUrl = this.configService.get("FRONTEND_URL") || "http://localhost:5173";
         const session = await this.stripe.checkout.sessions.create({
-            payment_method_types: ['card'],
+            payment_method_types: ["card"],
             line_items: [
                 {
                     price_data: {
-                        currency: 'inr',
+                        currency: "inr",
                         product_data: {
                             name: `Order #${order.orderNumber}`,
-                            description: 'Dental products purchase',
+                            description: "Dental products purchase",
                         },
                         unit_amount: Math.round(Number(order.totalAmount) * 100),
                     },
                     quantity: 1,
                 },
             ],
-            mode: 'payment',
+            mode: "payment",
             success_url: `${frontendUrl}/orders/${order.id}?payment=success&session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${frontendUrl}/orders/${order.id}?payment=cancelled`,
             metadata: {
@@ -74,28 +74,28 @@ let PaymentsService = class PaymentsService {
             gatewayPaymentId: session.id,
         });
         await this.paymentRepository.save(payment);
-        let checkoutUrl = session.url || '';
-        console.log('[DEBUG] Original Stripe URL:', checkoutUrl);
-        if (checkoutUrl.includes('{CHECKOUT_SESSION_ID}')) {
-            checkoutUrl = checkoutUrl.replace('{CHECKOUT_SESSION_ID}', session.id);
+        let checkoutUrl = session.url || "";
+        console.log("[DEBUG] Original Stripe URL:", checkoutUrl);
+        if (checkoutUrl.includes("{CHECKOUT_SESSION_ID}")) {
+            checkoutUrl = checkoutUrl.replace("{CHECKOUT_SESSION_ID}", session.id);
         }
-        else if (checkoutUrl.includes('#')) {
-            checkoutUrl = checkoutUrl.replace('#', `?session_id=${session.id}#`);
+        else if (checkoutUrl.includes("#")) {
+            checkoutUrl = checkoutUrl.replace("#", `?session_id=${session.id}#`);
         }
         else {
-            const separator = checkoutUrl.includes('?') ? '&' : '?';
+            const separator = checkoutUrl.includes("?") ? "&" : "?";
             checkoutUrl = `${checkoutUrl}${separator}session_id=${session.id}`;
         }
-        console.log('[DEBUG] Final redirect URL:', checkoutUrl);
+        console.log("[DEBUG] Final redirect URL:", checkoutUrl);
         return {
             sessionId: session.id,
             url: checkoutUrl,
         };
     }
     async handleWebhook(payload, signature) {
-        const webhookSecret = this.configService.get('STRIPE_WEBHOOK_SECRET');
+        const webhookSecret = this.configService.get("STRIPE_WEBHOOK_SECRET");
         if (!webhookSecret) {
-            console.log('Stripe webhook secret not configured - skipping webhook');
+            console.log("Stripe webhook secret not configured - skipping webhook");
             return;
         }
         let event;
@@ -103,10 +103,10 @@ let PaymentsService = class PaymentsService {
             event = this.stripe.webhooks.constructEvent(payload, signature, webhookSecret);
         }
         catch (err) {
-            console.error('Webhook signature verification failed:', err);
-            throw new common_1.BadRequestException('Webhook signature verification failed');
+            console.error("Webhook signature verification failed:", err);
+            throw new common_1.BadRequestException("Webhook signature verification failed");
         }
-        if (event.type === 'checkout.session.completed') {
+        if (event.type === "checkout.session.completed") {
             const session = event.data.object;
             await this.processSuccessfulPayment(session);
         }
@@ -114,7 +114,7 @@ let PaymentsService = class PaymentsService {
     async processSuccessfulPayment(session) {
         const orderId = session.metadata?.orderId;
         if (!orderId) {
-            console.log('No orderId in session metadata');
+            console.log("No orderId in session metadata");
             return;
         }
         const payment = await this.paymentRepository.findOne({
@@ -128,7 +128,7 @@ let PaymentsService = class PaymentsService {
             await this.paymentRepository.save(payment);
             const order = await this.orderRepository.findOne({
                 where: { id: orderId },
-                relations: ['items'],
+                relations: ["items"],
             });
             if (order && order.status === entities_1.OrderStatus.PENDING_PAYMENT) {
                 order.status = entities_1.OrderStatus.CONFIRMED;
@@ -141,13 +141,13 @@ let PaymentsService = class PaymentsService {
         }
     }
     async verifyAndConfirmPayment(sessionId) {
-        console.log('Verifying session:', sessionId);
+        console.log("Verifying session:", sessionId);
         const existingPayment = await this.paymentRepository.findOne({
             where: { gatewayPaymentId: sessionId },
-            relations: ['order'],
+            relations: ["order"],
         });
         if (existingPayment && existingPayment.order) {
-            console.log('Found existing payment for session');
+            console.log("Found existing payment for session");
             if (existingPayment.order.status === entities_1.OrderStatus.PENDING_PAYMENT) {
                 if (existingPayment.status !== entities_1.PaymentStatus.COMPLETED) {
                     existingPayment.status = entities_1.PaymentStatus.COMPLETED;
@@ -157,43 +157,46 @@ let PaymentsService = class PaymentsService {
                 existingPayment.order.status = entities_1.OrderStatus.CONFIRMED;
                 await this.orderRepository.save(existingPayment.order);
                 const orderItems = await this.orderItemRepository.find({
-                    where: { orderId: existingPayment.order.id }
+                    where: { orderId: existingPayment.order.id },
                 });
                 for (const item of orderItems) {
                     await this.inventoryService.reserveStock(item.productId, item.quantity);
                 }
-                console.log('Order confirmed via existing payment');
+                console.log("Order confirmed via existing payment");
                 return { success: true, orderId: existingPayment.order.id };
             }
             return { success: true, orderId: existingPayment.order.id };
         }
         if (!this.stripe) {
-            console.error('Stripe not initialized');
-            return { success: false, error: 'Stripe not configured' };
+            console.error("Stripe not initialized");
+            return { success: false, error: "Stripe not configured" };
         }
         try {
             const session = await this.stripe.checkout.sessions.retrieve(sessionId);
-            console.log('Session retrieved:', session.id, 'Status:', session.payment_status);
-            if (session.payment_status === 'paid') {
-                console.log('Payment is paid, processing...');
+            console.log("Session retrieved:", session.id, "Status:", session.payment_status);
+            if (session.payment_status === "paid") {
+                console.log("Payment is paid, processing...");
                 await this.processSuccessfulPayment(session);
                 return { success: true, orderId: session.metadata?.orderId };
             }
-            console.log('Payment not completed, status:', session.payment_status);
-            return { success: false, error: `Payment status: ${session.payment_status}` };
+            console.log("Payment not completed, status:", session.payment_status);
+            return {
+                success: false,
+                error: `Payment status: ${session.payment_status}`,
+            };
         }
         catch (error) {
-            console.error('Error verifying payment:', error.message);
+            console.error("Error verifying payment:", error.message);
             return { success: false, error: error.message };
         }
     }
     async verifyPayment(orderId) {
         const payment = await this.paymentRepository.findOne({
             where: { orderId },
-            relations: ['order'],
+            relations: ["order"],
         });
         if (!payment) {
-            throw new common_1.NotFoundException('Payment not found');
+            throw new common_1.NotFoundException("Payment not found");
         }
         return payment;
     }
@@ -202,7 +205,39 @@ let PaymentsService = class PaymentsService {
             where: { orderId },
         });
         if (!payment) {
-            throw new common_1.NotFoundException('Payment not found');
+            throw new common_1.NotFoundException("Payment not found");
+        }
+        payment.status = entities_1.PaymentStatus.FAILED;
+        payment.failureReason = reason;
+        return this.paymentRepository.save(payment);
+    }
+    async confirmCODPayment(orderId, transactionId) {
+        const payment = await this.paymentRepository.findOne({
+            where: { orderId },
+        });
+        if (!payment) {
+            throw new common_1.NotFoundException("Payment not found");
+        }
+        if (payment.method !== entities_1.PaymentMethod.COD) {
+            throw new common_1.BadRequestException("Order is not a COD order");
+        }
+        if (payment.status === entities_1.PaymentStatus.COMPLETED) {
+            return payment;
+        }
+        payment.status = entities_1.PaymentStatus.COMPLETED;
+        payment.transactionId = transactionId || `COD-${Date.now()}`;
+        payment.gatewayResponse = JSON.stringify({
+            method: "COD",
+            confirmedAt: new Date().toISOString(),
+        });
+        return this.paymentRepository.save(payment);
+    }
+    async markCODPaymentFailed(orderId, reason) {
+        const payment = await this.paymentRepository.findOne({
+            where: { orderId },
+        });
+        if (!payment) {
+            throw new common_1.NotFoundException("Payment not found");
         }
         payment.status = entities_1.PaymentStatus.FAILED;
         payment.failureReason = reason;
@@ -213,16 +248,16 @@ let PaymentsService = class PaymentsService {
             where: { orderId },
         });
         if (!payment) {
-            throw new common_1.NotFoundException('Payment not found');
+            throw new common_1.NotFoundException("Payment not found");
         }
         return payment;
     }
     async getPaymentsForAdmin(page = 1, limit = 10) {
         const [payments, total] = await this.paymentRepository.findAndCount({
-            relations: ['order', 'order.user'],
+            relations: ["order", "order.user"],
             skip: (page - 1) * limit,
             take: limit,
-            order: { createdAt: 'DESC' },
+            order: { createdAt: "DESC" },
         });
         return { payments, total };
     }

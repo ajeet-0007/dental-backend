@@ -1,7 +1,7 @@
-import { RawBodyRequest } from '@nestjs/common';
-import { PaymentsService } from './payments.service';
-import { CreatePaymentDto } from './dto/payment.dto';
-import { Request as ExpressRequest } from 'express';
+import { RawBodyRequest } from "@nestjs/common";
+import { PaymentsService } from "./payments.service";
+import { CreatePaymentDto } from "./dto/payment.dto";
+import { Request as ExpressRequest } from "express";
 export declare class PaymentsController {
     private readonly paymentsService;
     constructor(paymentsService: PaymentsService);
@@ -23,4 +23,10 @@ export declare class PaymentsController {
         payments: import("../../database/entities").Payment[];
         total: number;
     }>;
+    confirmCODPayment(orderId: string, body: {
+        transactionId?: string;
+    }): Promise<import("../../database/entities").Payment>;
+    markCODPaymentFailed(orderId: string, body: {
+        reason: string;
+    }): Promise<import("../../database/entities").Payment>;
 }

@@ -31,7 +31,7 @@ let PaymentsController = class PaymentsController {
     async handleWebhook(req, signature) {
         const payload = req.rawBody;
         if (!payload) {
-            throw new Error('No payload received');
+            throw new Error("No payload received");
         }
         return this.paymentsService.handleWebhook(payload, signature);
     }
@@ -47,13 +47,19 @@ let PaymentsController = class PaymentsController {
     async getPaymentsForAdmin(page = 1, limit = 10) {
         return this.paymentsService.getPaymentsForAdmin(+page, +limit);
     }
+    async confirmCODPayment(orderId, body) {
+        return this.paymentsService.confirmCODPayment(orderId, body.transactionId);
+    }
+    async markCODPaymentFailed(orderId, body) {
+        return this.paymentsService.markCODPaymentFailed(orderId, body.reason);
+    }
 };
 exports.PaymentsController = PaymentsController;
 __decorate([
-    (0, common_1.Post)('create-checkout-session'),
+    (0, common_1.Post)("create-checkout-session"),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, swagger_1.ApiBearerAuth)(),
-    (0, swagger_1.ApiOperation)({ summary: 'Create Stripe checkout session' }),
+    (0, swagger_1.ApiOperation)({ summary: "Create Stripe checkout session" }),
     __param(0, (0, common_1.Request)()),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -61,57 +67,81 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], PaymentsController.prototype, "createCheckoutSession", null);
 __decorate([
-    (0, common_1.Post)('webhook'),
-    (0, swagger_1.ApiOperation)({ summary: 'Stripe webhook endpoint' }),
+    (0, common_1.Post)("webhook"),
+    (0, swagger_1.ApiOperation)({ summary: "Stripe webhook endpoint" }),
     __param(0, (0, common_1.Req)()),
-    __param(1, (0, common_1.Headers)('stripe-signature')),
+    __param(1, (0, common_1.Headers)("stripe-signature")),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
 ], PaymentsController.prototype, "handleWebhook", null);
 __decorate([
-    (0, common_1.Get)('verify/:orderId'),
+    (0, common_1.Get)("verify/:orderId"),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, swagger_1.ApiBearerAuth)(),
-    (0, swagger_1.ApiOperation)({ summary: 'Verify payment status' }),
-    __param(0, (0, common_1.Param)('orderId')),
+    (0, swagger_1.ApiOperation)({ summary: "Verify payment status" }),
+    __param(0, (0, common_1.Param)("orderId")),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], PaymentsController.prototype, "verifyPayment", null);
 __decorate([
-    (0, common_1.Post)('verify-session'),
-    (0, swagger_1.ApiOperation)({ summary: 'Verify Stripe session and confirm order' }),
+    (0, common_1.Post)("verify-session"),
+    (0, swagger_1.ApiOperation)({ summary: "Verify Stripe session and confirm order" }),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], PaymentsController.prototype, "verifySession", null);
 __decorate([
-    (0, common_1.Get)('order/:orderId'),
+    (0, common_1.Get)("order/:orderId"),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, swagger_1.ApiBearerAuth)(),
-    (0, swagger_1.ApiOperation)({ summary: 'Get payment by order ID' }),
-    __param(0, (0, common_1.Param)('orderId')),
+    (0, swagger_1.ApiOperation)({ summary: "Get payment by order ID" }),
+    __param(0, (0, common_1.Param)("orderId")),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], PaymentsController.prototype, "getPaymentByOrder", null);
 __decorate([
-    (0, common_1.Get)('admin/all'),
+    (0, common_1.Get)("admin/all"),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
     (0, roles_decorator_1.Roles)(entities_1.UserRole.ADMIN),
     (0, swagger_1.ApiBearerAuth)(),
-    (0, swagger_1.ApiOperation)({ summary: 'Get all payments (Admin only)' }),
-    __param(0, (0, common_1.Query)('page')),
-    __param(1, (0, common_1.Query)('limit')),
+    (0, swagger_1.ApiOperation)({ summary: "Get all payments (Admin only)" }),
+    __param(0, (0, common_1.Query)("page")),
+    __param(1, (0, common_1.Query)("limit")),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], PaymentsController.prototype, "getPaymentsForAdmin", null);
+__decorate([
+    (0, common_1.Post)("confirm-cod/:orderId"),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)(entities_1.UserRole.ADMIN),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_1.ApiOperation)({ summary: "Confirm COD payment (when cash collected)" }),
+    __param(0, (0, common_1.Param)("orderId")),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], PaymentsController.prototype, "confirmCODPayment", null);
+__decorate([
+    (0, common_1.Post)("cod-failed/:orderId"),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)(entities_1.UserRole.ADMIN),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_1.ApiOperation)({ summary: "Mark COD payment as failed" }),
+    __param(0, (0, common_1.Param)("orderId")),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], PaymentsController.prototype, "markCODPaymentFailed", null);
 exports.PaymentsController = PaymentsController = __decorate([
-    (0, swagger_1.ApiTags)('Payments'),
-    (0, common_1.Controller)('payments'),
+    (0, swagger_1.ApiTags)("Payments"),
+    (0, common_1.Controller)("payments"),
     __metadata("design:paramtypes", [payments_service_1.PaymentsService])
 ], PaymentsController);
 //# sourceMappingURL=payments.controller.js.map

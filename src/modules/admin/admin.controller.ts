@@ -31,8 +31,9 @@ export class AdminController {
     @Query("page") page = 1,
     @Query("limit") limit = 20,
     @Query("status") status?: string,
+    @Query("search") search?: string,
   ) {
-    return this.adminService.getAllOrders(+page, +limit, status);
+    return this.adminService.getAllOrders(+page, +limit, status, search);
   }
 
   @Put("orders/:id/status")

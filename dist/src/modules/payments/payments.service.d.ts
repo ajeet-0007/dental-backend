@@ -1,8 +1,8 @@
-import { Repository } from 'typeorm';
-import { ConfigService } from '@nestjs/config';
-import { Payment, Order, OrderItem } from '../../database/entities';
-import { CreatePaymentDto } from './dto/payment.dto';
-import { InventoryService } from '../inventory/inventory.service';
+import { Repository } from "typeorm";
+import { ConfigService } from "@nestjs/config";
+import { Payment, Order, OrderItem } from "../../database/entities";
+import { CreatePaymentDto } from "./dto/payment.dto";
+import { InventoryService } from "../inventory/inventory.service";
 export declare class PaymentsService {
     private paymentRepository;
     private orderRepository;
@@ -24,6 +24,8 @@ export declare class PaymentsService {
     }>;
     verifyPayment(orderId: string): Promise<Payment>;
     handlePaymentFailure(orderId: string, reason: string): Promise<Payment>;
+    confirmCODPayment(orderId: string, transactionId?: string): Promise<Payment>;
+    markCODPaymentFailed(orderId: string, reason: string): Promise<Payment>;
     getPaymentByOrder(orderId: string): Promise<Payment>;
     getPaymentsForAdmin(page?: number, limit?: number): Promise<{
         payments: Payment[];

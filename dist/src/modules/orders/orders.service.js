@@ -20,7 +20,7 @@ const entities_1 = require("../../database/entities");
 const slugify_1 = require("../../common/utils/slugify");
 const inventory_service_1 = require("../inventory/inventory.service");
 let OrdersService = class OrdersService {
-    constructor(orderRepository, orderItemRepository, cartRepository, productRepository, productVariantRepository, inventoryRepository, addressRepository, inventoryService) {
+    constructor(orderRepository, orderItemRepository, cartRepository, productRepository, productVariantRepository, inventoryRepository, addressRepository, paymentRepository, inventoryService, dataSource) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
         this.cartRepository = cartRepository;
@@ -28,7 +28,9 @@ let OrdersService = class OrdersService {
         this.productVariantRepository = productVariantRepository;
         this.inventoryRepository = inventoryRepository;
         this.addressRepository = addressRepository;
+        this.paymentRepository = paymentRepository;
         this.inventoryService = inventoryService;
+        this.dataSource = dataSource;
     }
     async create(userId, createOrderDto) {
         const cartItems = await this.cartRepository.find({
@@ -73,29 +75,55 @@ let OrdersService = class OrdersService {
         const shippingAmount = subtotal > 500 ? 0 : 50;
         const taxAmount = Math.round(subtotal * 0.18 * 100) / 100;
         const totalAmount = subtotal + shippingAmount + taxAmount;
-        const order = this.orderRepository.create({
-            orderNumber: (0, slugify_1.generateOrderNumber)(),
-            userId,
-            status: entities_1.OrderStatus.PENDING_PAYMENT,
-            subtotal,
-            taxAmount,
-            shippingAmount,
-            discountAmount: 0,
-            totalAmount,
-            shippingAddress,
-            customerNote: createOrderDto.customerNote,
-            couponCode: createOrderDto.couponCode,
-        });
-        const savedOrder = await this.orderRepository.save(order);
-        const orderItemsEntities = orderItems.map((item) => {
-            return this.orderItemRepository.create({
-                ...item,
-                orderId: savedOrder.id,
+        const isCOD = createOrderDto.paymentMethod === "cod";
+        const queryRunner = this.dataSource.createQueryRunner();
+        await queryRunner.connect();
+        await queryRunner.startTransaction();
+        try {
+            const order = this.orderRepository.create({
+                orderNumber: (0, slugify_1.generateOrderNumber)(),
+                userId,
+                status: isCOD ? entities_1.OrderStatus.CONFIRMED : entities_1.OrderStatus.PENDING_PAYMENT,
+                subtotal,
+                taxAmount,
+                shippingAmount,
+                discountAmount: 0,
+                totalAmount,
+                shippingAddress,
+                customerNote: createOrderDto.customerNote,
+                couponCode: createOrderDto.couponCode,
             });
-        });
-        await this.orderItemRepository.save(orderItemsEntities);
-        await this.cartRepository.delete({ userId });
-        return this.findOne(savedOrder.id);
+            const savedOrder = await queryRunner.manager.save(order);
+            const orderItemsEntities = orderItems.map((item) => {
+                return this.orderItemRepository.create({
+                    ...item,
+                    orderId: savedOrder.id,
+                });
+            });
+            await queryRunner.manager.save(orderItemsEntities);
+            if (isCOD) {
+                const payment = this.paymentRepository.create({
+                    orderId: savedOrder.id,
+                    amount: totalAmount,
+                    status: entities_1.PaymentStatus.PENDING,
+                    method: entities_1.PaymentMethod.COD,
+                });
+                await queryRunner.manager.save(payment);
+                for (const item of orderItems) {
+                    await this.inventoryService.reserveStock(item.productId, item.quantity);
+                }
+            }
+            await queryRunner.commitTransaction();
+            await this.cartRepository.delete({ userId });
+            return this.findOne(savedOrder.id);
+        }
+        catch (error) {
+            await queryRunner.rollbackTransaction();
+            throw error;
+        }
+        finally {
+            await queryRunner.release();
+        }
     }
     async findAll(userId, page = 1, limit = 10) {
         const queryBuilder = this.orderRepository
@@ -227,6 +255,7 @@ exports.OrdersService = OrdersService = __decorate([
     __param(4, (0, typeorm_1.InjectRepository)(entities_1.ProductVariant)),
     __param(5, (0, typeorm_1.InjectRepository)(entities_1.Inventory)),
     __param(6, (0, typeorm_1.InjectRepository)(entities_1.Address)),
+    __param(7, (0, typeorm_1.InjectRepository)(entities_1.Payment)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
@@ -234,6 +263,8 @@ exports.OrdersService = OrdersService = __decorate([
         typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
-        inventory_service_1.InventoryService])
+        typeorm_2.Repository,
+        inventory_service_1.InventoryService,
+        typeorm_2.DataSource])
 ], OrdersService);
 //# sourceMappingURL=orders.service.js.map

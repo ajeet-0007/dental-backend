@@ -1,5 +1,5 @@
-import { Repository } from "typeorm";
-import { Order, OrderItem, Cart, Product, ProductVariant, Inventory, Address } from "../../database/entities";
+import { Repository, DataSource } from "typeorm";
+import { Order, OrderItem, Cart, Product, ProductVariant, Inventory, Address, Payment } from "../../database/entities";
 import { CreateOrderDto, UpdateOrderStatusDto } from "./dto/order.dto";
 import { InventoryService } from "../inventory/inventory.service";
 export declare class OrdersService {
@@ -10,8 +10,10 @@ export declare class OrdersService {
     private productVariantRepository;
     private inventoryRepository;
     private addressRepository;
+    private paymentRepository;
     private inventoryService;
-    constructor(orderRepository: Repository<Order>, orderItemRepository: Repository<OrderItem>, cartRepository: Repository<Cart>, productRepository: Repository<Product>, productVariantRepository: Repository<ProductVariant>, inventoryRepository: Repository<Inventory>, addressRepository: Repository<Address>, inventoryService: InventoryService);
+    private dataSource;
+    constructor(orderRepository: Repository<Order>, orderItemRepository: Repository<OrderItem>, cartRepository: Repository<Cart>, productRepository: Repository<Product>, productVariantRepository: Repository<ProductVariant>, inventoryRepository: Repository<Inventory>, addressRepository: Repository<Address>, paymentRepository: Repository<Payment>, inventoryService: InventoryService, dataSource: DataSource);
     create(userId: string, createOrderDto: CreateOrderDto): Promise<Order>;
     findAll(userId: string, page?: number, limit?: number): Promise<{
         orders: any[];

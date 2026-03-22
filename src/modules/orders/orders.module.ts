@@ -1,7 +1,7 @@
-import { Module, forwardRef } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { OrdersService } from './orders.service';
-import { OrdersController } from './orders.controller';
+import { Module, forwardRef } from "@nestjs/common";
+import { TypeOrmModule } from "@nestjs/typeorm";
+import { OrdersService } from "./orders.service";
+import { OrdersController } from "./orders.controller";
 import {
   Order,
   OrderItem,
@@ -10,8 +10,9 @@ import {
   ProductVariant,
   Inventory,
   Address,
-} from '../../database/entities';
-import { InventoryModule } from '../inventory/inventory.module';
+  Payment,
+} from "../../database/entities";
+import { InventoryModule } from "../inventory/inventory.module";
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { InventoryModule } from '../inventory/inventory.module';
       ProductVariant,
       Inventory,
       Address,
+      Payment,
     ]),
     forwardRef(() => InventoryModule),
   ],

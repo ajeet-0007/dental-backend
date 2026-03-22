@@ -113,7 +113,7 @@ export class AdminService {
       .getRawMany();
   }
 
-  async getAllOrders(page = 1, limit = 20, status?: string) {
+  async getAllOrders(page = 1, limit = 20, status?: string, search?: string) {
     const query = this.orderRepository
       .createQueryBuilder("order")
       .leftJoinAndSelect("order.user", "user")
@@ -124,7 +124,14 @@ export class AdminService {
       .take(limit);
 
     if (status) {
-      query.where("order.status = :status", { status });
+      query.andWhere("order.status = :status", { status });
+    }
+
+    if (search) {
+      query.andWhere(
+        "(order.orderNumber LIKE :search OR user.firstName LIKE :search OR user.lastName LIKE :search OR user.email LIKE :search)",
+        { search: `%${search}%` },
+      );
     }
 
     const [orders, total] = await query.getManyAndCount();

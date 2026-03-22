@@ -27,6 +27,7 @@ exports.OrdersModule = OrdersModule = __decorate([
                 entities_1.ProductVariant,
                 entities_1.Inventory,
                 entities_1.Address,
+                entities_1.Payment,
             ]),
             (0, common_1.forwardRef)(() => inventory_module_1.InventoryModule),
         ],
