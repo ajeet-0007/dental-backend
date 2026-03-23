@@ -88,8 +88,8 @@ export class AdminController {
   }
 
   @Get("inventory")
-  async getInventory(@Query("productId") productId?: string) {
-    return this.adminService.getInventory(productId ? +productId : undefined);
+  async getInventory(@Query("productId") productId?: string, @Query("search") search?: string) {
+    return this.adminService.getInventory(productId ? +productId : undefined, search);
   }
 
   @Get("categories")

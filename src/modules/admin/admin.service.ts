@@ -277,14 +277,28 @@ export class AdminService {
     return { success: true };
   }
 
-  async getInventory(productId?: number) {
+  async getInventory(productId?: number, search?: string) {
     const query = this.inventoryRepository
       .createQueryBuilder("inventory")
       .leftJoinAndSelect("inventory.product", "product")
       .orderBy("inventory.quantity", "ASC");
 
     if (productId) {
-      query.where("inventory.productId = :productId", { productId });
+      query.andWhere("inventory.productId = :productId", { productId });
+    }
+
+    if (search && search.trim()) {
+      const searchNum = parseInt(search, 10);
+      const isNumeric = !isNaN(searchNum);
+      
+      if (isNumeric) {
+        query.andWhere("inventory.productId = :searchNum", { searchNum });
+      } else {
+        query.andWhere(
+          "(product.name LIKE :search OR product.sku LIKE :search)",
+          { search: `%${search}%` }
+        );
+      }
     }
 
     const inventory = await query.getMany();
