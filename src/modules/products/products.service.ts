@@ -69,9 +69,29 @@ export class ProductsService {
       isFeatured,
       page = 1,
       limit = 10,
-      sortBy = "createdAt",
-      sortOrder = "DESC",
+      sortBy,
+      sortOrder,
     } = query;
+
+    const sortMapping: Record<string, { field: string; order: 'ASC' | 'DESC' }> = {
+      newest: { field: 'createdAt', order: 'DESC' },
+      oldest: { field: 'createdAt', order: 'ASC' },
+      'price-asc': { field: 'sellingPrice', order: 'ASC' },
+      'price-desc': { field: 'sellingPrice', order: 'DESC' },
+      'name-asc': { field: 'name', order: 'ASC' },
+      'name-desc': { field: 'name', order: 'DESC' },
+    };
+
+    let orderField = 'createdAt';
+    let orderDirection: 'ASC' | 'DESC' = 'DESC';
+
+    if (sortBy && sortMapping[sortBy]) {
+      orderField = sortMapping[sortBy].field;
+      orderDirection = sortMapping[sortBy].order;
+    } else if (sortBy) {
+      orderField = sortBy;
+      orderDirection = sortOrder || 'DESC';
+    }
 
     const queryBuilder = this.productRepository
       .createQueryBuilder("product")
@@ -107,7 +127,7 @@ export class ProductsService {
     }
 
     queryBuilder
-      .orderBy(`product.${sortBy}`, sortOrder)
+      .orderBy(`product.${orderField}`, orderDirection)
       .skip((page - 1) * limit)
       .take(limit);
 
