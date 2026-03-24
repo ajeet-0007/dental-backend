@@ -45,6 +45,12 @@ export class ProductsController {
     return this.productsService.getAllBrands();
   }
 
+  @Get('search/:query')
+  @ApiOperation({ summary: 'Global search products and categories' })
+  async globalSearch(@Param('query') query: string) {
+    return this.productsService.globalSearch(query);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get product by ID' })
   async findOne(@Param('id') id: string) {

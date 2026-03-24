@@ -5,7 +5,7 @@ import {
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, Like, ILike } from "typeorm";
-import { Product, ProductVariant, Inventory } from "../../database/entities";
+import { Product, ProductVariant, Inventory, Category } from "../../database/entities";
 import {
   CreateProductDto,
   UpdateProductDto,
@@ -23,6 +23,8 @@ export class ProductsService {
     private productVariantRepository: Repository<ProductVariant>,
     @InjectRepository(Inventory)
     private inventoryRepository: Repository<Inventory>,
+    @InjectRepository(Category)
+    private categoryRepository: Repository<Category>,
   ) {}
 
   async create(createProductDto: CreateProductDto): Promise<Product> {
@@ -220,5 +222,28 @@ export class ProductsService {
       .getRawMany();
 
     return result.map((r) => r.brand).filter(Boolean);
+  }
+
+  async globalSearch(query: string) {
+    const products = await this.productRepository
+      .createQueryBuilder("product")
+      .leftJoinAndSelect("product.category", "category")
+      .where("(product.name LIKE :query OR product.description LIKE :query)", {
+        query: `%${query}%`,
+      })
+      .andWhere("product.isActive = :isActive", { isActive: true })
+      .orderBy("product.name", "ASC")
+      .take(8)
+      .getMany();
+
+    const categories = await this.categoryRepository
+      .createQueryBuilder("category")
+      .where("category.name LIKE :query", { query: `%${query}%` })
+      .andWhere("category.isActive = :isActive", { isActive: true })
+      .orderBy("category.name", "ASC")
+      .take(5)
+      .getMany();
+
+    return { products, categories };
   }
 }

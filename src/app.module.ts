@@ -15,6 +15,7 @@ import { ShippingModule } from "./modules/shipping/shipping.module";
 import { AdminModule } from "./modules/admin/admin.module";
 import { ImageKitModule } from "./modules/imagekit/imagekit.module";
 import { HealthModule } from "./modules/health/health.module";
+import { WishlistModule } from "./modules/wishlist/wishlist.module";
 
 @Module({
   imports: [
@@ -60,6 +61,7 @@ import { HealthModule } from "./modules/health/health.module";
     ShippingModule,
     AdminModule,
     ImageKitModule,
+    WishlistModule,
   ],
 })
 export class AppModule {}

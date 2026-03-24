@@ -112,4 +112,14 @@ export class CategoriesService {
 
     return rootCategories;
   }
+
+  async search(query: string): Promise<Category[]> {
+    return this.categoryRepository
+      .createQueryBuilder("category")
+      .where("category.name LIKE :query", { query: `%${query}%` })
+      .andWhere("category.isActive = :isActive", { isActive: true })
+      .orderBy("category.name", "ASC")
+      .take(5)
+      .getMany();
+  }
 }

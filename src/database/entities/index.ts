@@ -11,3 +11,4 @@ export * from './payment.entity';
 export * from './shipment.entity';
 export * from './review.entity';
 export * from './shipping-method.entity';
+export * from './wishlist.entity';

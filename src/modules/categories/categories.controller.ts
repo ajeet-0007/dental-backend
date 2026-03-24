@@ -28,6 +28,12 @@ export class CategoriesController {
     return this.categoriesService.findAll(active === 'true');
   }
 
+  @Get('search/:query')
+  @ApiOperation({ summary: 'Search categories' })
+  async search(@Param('query') query: string) {
+    return this.categoriesService.search(query);
+  }
+
   @Get('tree')
   @ApiOperation({ summary: 'Get category tree' })
   async getTree() {
