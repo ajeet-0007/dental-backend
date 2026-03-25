@@ -125,7 +125,14 @@ export class CartService {
         ? {
             id: item.productVariant.id,
             name: item.productVariant.name,
-            price: item.productVariant.sellingPrice,
+            sku: item.productVariant.sku,
+            color: item.productVariant.color,
+            size: item.productVariant.size,
+            flavor: item.productVariant.flavor,
+            packQuantity: item.productVariant.packQuantity,
+            price: item.productVariant.price,
+            sellingPrice: item.productVariant.sellingPrice,
+            mrp: item.productVariant.mrp,
             image: item.productVariant.image,
           }
         : null,

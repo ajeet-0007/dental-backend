@@ -4,12 +4,13 @@ import {
   ConflictException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository, Like, ILike } from "typeorm";
+import { Repository, Like, ILike, MoreThanOrEqual, LessThanOrEqual, In } from "typeorm";
 import { Product, ProductVariant, Inventory, Category } from "../../database/entities";
 import {
   CreateProductDto,
   UpdateProductDto,
   CreateProductVariantDto,
+  UpdateProductVariantDto,
   ProductQueryDto,
 } from "./dto/product.dto";
 import { slugify, generateSKU } from "../../common/utils/slugify";
@@ -95,49 +96,125 @@ export class ProductsService {
     }
 
     const queryBuilder = this.productRepository
-      .createQueryBuilder("product")
-      .leftJoinAndSelect("product.category", "category")
-      .leftJoinAndSelect("product.variants", "variants")
-      .leftJoinAndSelect("product.inventories", "inventories");
+      .createQueryBuilder('product')
+      .leftJoinAndSelect('product.category', 'category')
+      .where('product.isActive = :isActive', { isActive: true });
 
     if (search) {
       queryBuilder.andWhere(
-        "(product.name LIKE :search OR product.description LIKE :search OR product.sku LIKE :search)",
+        '(product.name LIKE :search OR product.description LIKE :search OR product.sku LIKE :search)',
         { search: `%${search}%` },
       );
     }
 
     if (category) {
-      queryBuilder.andWhere("category.slug = :category", { category });
+      queryBuilder.andWhere('category.slug = :category', { category });
     }
 
     if (categories) {
       const categoryList = categories.split(',').map((c) => c.trim());
-      queryBuilder.andWhere("category.slug IN (:...categories)", { categories: categoryList });
+      queryBuilder.andWhere('category.slug IN (:...categories)', { categories: categoryList });
     }
 
     if (brand) {
-      queryBuilder.andWhere("product.brand = :brand", { brand });
+      queryBuilder.andWhere('product.brand = :brand', { brand });
     }
 
     if (minPrice) {
-      queryBuilder.andWhere("product.sellingPrice >= :minPrice", { minPrice });
+      queryBuilder.andWhere('product.sellingPrice >= :minPrice', { minPrice });
     }
 
     if (maxPrice) {
-      queryBuilder.andWhere("product.sellingPrice <= :maxPrice", { maxPrice });
+      queryBuilder.andWhere('product.sellingPrice <= :maxPrice', { maxPrice });
     }
 
     if (isFeatured !== undefined) {
-      queryBuilder.andWhere("product.isFeatured = :isFeatured", { isFeatured });
+      queryBuilder.andWhere('product.isFeatured = :isFeatured', { isFeatured });
     }
 
-    queryBuilder
-      .orderBy(`product.${orderField}`, orderDirection)
-      .skip((page - 1) * limit)
-      .take(limit);
+    queryBuilder.orderBy(`product.${orderField}`, orderDirection);
+    queryBuilder.skip((page - 1) * limit).take(limit);
 
-    const [products, total] = await queryBuilder.getManyAndCount();
+    const products = await queryBuilder.getMany();
+    const productIds = products.map((p) => p.id);
+
+    if (productIds.length > 0) {
+      const productIdsAsStrings = productIds.map((id) => String(id));
+
+      const [variants, inventories] = await Promise.all([
+        this.productVariantRepository.find({
+          where: { productId: In(productIdsAsStrings), isActive: true },
+        }),
+        this.inventoryRepository.find({
+          where: { productId: In(productIdsAsStrings) },
+        }),
+      ]);
+
+      const variantsMap = new Map<string, ProductVariant[]>();
+      variants.forEach((v) => {
+        const key = String(v.productId);
+        const existing = variantsMap.get(key) || [];
+        existing.push(v);
+        variantsMap.set(key, existing);
+      });
+
+      const inventoriesMap = new Map<string, Inventory[]>();
+      inventories.forEach((i) => {
+        const existing = inventoriesMap.get(i.productId) || [];
+        existing.push(i);
+        inventoriesMap.set(i.productId, existing);
+      });
+
+      products.forEach((p) => {
+        const key = String(p.id);
+        p.variants = variantsMap.get(key) || [];
+        p.inventories = inventoriesMap.get(key) || [];
+      });
+    } else {
+      products.forEach((p) => {
+        p.variants = [];
+        p.inventories = [];
+      });
+    }
+
+    const totalQueryBuilder = this.productRepository
+      .createQueryBuilder('product')
+      .leftJoin('product.category', 'category')
+      .where('product.isActive = :isActive', { isActive: true });
+
+    if (search) {
+      totalQueryBuilder.andWhere(
+        '(product.name LIKE :search OR product.description LIKE :search OR product.sku LIKE :search)',
+        { search: `%${search}%` },
+      );
+    }
+
+    if (category) {
+      totalQueryBuilder.andWhere('category.slug = :category', { category });
+    }
+
+    if (categories) {
+      const categoryList = categories.split(',').map((c) => c.trim());
+      totalQueryBuilder.andWhere('category.slug IN (:...categories)', { categories: categoryList });
+    }
+
+    if (brand) {
+      totalQueryBuilder.andWhere('product.brand = :brand', { brand });
+    }
+
+    if (minPrice) {
+      totalQueryBuilder.andWhere('product.sellingPrice >= :minPrice', { minPrice });
+    }
+
+    if (maxPrice) {
+      totalQueryBuilder.andWhere('product.sellingPrice <= :maxPrice', { maxPrice });
+    }
+
+    if (isFeatured !== undefined) {
+      totalQueryBuilder.andWhere('product.isFeatured = :isFeatured', { isFeatured });
+    }
+
+    const total = await totalQueryBuilder.getCount();
 
     return {
       products,
@@ -212,9 +289,41 @@ export class ProductsService {
       sku,
       sellingPrice: createVariantDto.sellingPrice || createVariantDto.price,
       mrp: createVariantDto.mrp || createVariantDto.price,
+      packQuantity: createVariantDto.packQuantity || 1,
     });
 
     return this.productVariantRepository.save(variant);
+  }
+
+  async getProductVariants(productId: string): Promise<ProductVariant[]> {
+    return this.productVariantRepository.find({
+      where: { productId, isActive: true },
+      order: { createdAt: 'ASC' },
+    });
+  }
+
+  async updateVariant(
+    id: string,
+    updateVariantDto: UpdateProductVariantDto,
+  ): Promise<ProductVariant> {
+    const variant = await this.productVariantRepository.findOne({ where: { id } });
+    
+    if (!variant) {
+      throw new NotFoundException('Variant not found');
+    }
+
+    Object.assign(variant, updateVariantDto);
+    return this.productVariantRepository.save(variant);
+  }
+
+  async removeVariant(id: string): Promise<void> {
+    const variant = await this.productVariantRepository.findOne({ where: { id } });
+    
+    if (!variant) {
+      throw new NotFoundException('Variant not found');
+    }
+
+    await this.productVariantRepository.remove(variant);
   }
 
   async getFeaturedProducts(limit = 10): Promise<Product[]> {

@@ -48,6 +48,18 @@ export class ProductVariant {
   @Column('simple-array', { nullable: true })
   images: string[];
 
+  @Column({ nullable: true })
+  color: string;
+
+  @Column({ nullable: true })
+  size: string;
+
+  @Column({ nullable: true })
+  flavor: string;
+
+  @Column({ default: 1 })
+  packQuantity: number;
+
   @Column({ default: true })
   isActive: boolean;
 

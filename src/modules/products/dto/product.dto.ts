@@ -218,6 +218,98 @@ export class CreateProductVariantDto {
   @IsOptional()
   @IsArray()
   images?: string[];
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  color?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  size?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  flavor?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsNumber()
+  packQuantity?: number;
+}
+
+export class UpdateProductVariantDto {
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  sku?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsNumber()
+  price?: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsNumber()
+  sellingPrice?: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsNumber()
+  mrp?: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsNumber()
+  weight?: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  weightUnit?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  image?: string;
+
+  @ApiProperty({ required: false, type: [String] })
+  @IsOptional()
+  @IsArray()
+  images?: string[];
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  color?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  size?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  flavor?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsNumber()
+  packQuantity?: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }
 
 export class ProductQueryDto {

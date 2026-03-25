@@ -15,6 +15,7 @@ import {
   CreateProductDto,
   UpdateProductDto,
   CreateProductVariantDto,
+  UpdateProductVariantDto,
   ProductQueryDto,
 } from './dto/product.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -69,6 +70,12 @@ export class ProductsController {
     return this.productsService.getRelatedProducts(id, +limit);
   }
 
+  @Get(':id/variants')
+  @ApiOperation({ summary: 'Get all variants for a product' })
+  async getProductVariants(@Param('id') id: string) {
+    return this.productsService.getProductVariants(id);
+  }
+
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
@@ -99,6 +106,18 @@ export class ProductsController {
     return this.productsService.update(id, updateProductDto);
   }
 
+  @Put('variants/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update product variant (Admin only)' })
+  async updateVariant(
+    @Param('id') id: string,
+    @Body() updateVariantDto: UpdateProductVariantDto,
+  ) {
+    return this.productsService.updateVariant(id, updateVariantDto);
+  }
+
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
@@ -106,5 +125,14 @@ export class ProductsController {
   @ApiOperation({ summary: 'Delete product (Admin only)' })
   async remove(@Param('id') id: string) {
     return this.productsService.remove(id);
+  }
+
+  @Delete('variants/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Delete product variant (Admin only)' })
+  async removeVariant(@Param('id') id: string) {
+    return this.productsService.removeVariant(id);
   }
 }
