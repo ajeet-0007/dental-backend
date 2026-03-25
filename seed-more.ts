@@ -39,6 +39,7 @@ async function seedMoreCategoriesAndProducts() {
       { name: 'Restoratives', slug: 'restoratives', description: 'Dental restorative materials' },
       { name: 'Surgical Instruments', slug: 'surgical-instruments', description: 'Surgical dental instruments' },
       { name: 'Infection Control', slug: 'infection-control', description: 'Dental infection control supplies' },
+      { name: 'Safety', slug: 'safety', description: 'Dental safety products and equipment' },
       { name: 'Prosthodontics', slug: 'prosthodontics', description: 'Dentures and prosthetics' },
       { name: 'Pediatric Dentistry', slug: 'pediatric-dentistry', description: 'Pediatric dental products' },
       { name: 'Dental Accessories', slug: 'dental-accessories', description: 'Various dental accessories' },

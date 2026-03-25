@@ -234,6 +234,11 @@ export class ProductQueryDto {
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
+  categories?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
   brand?: string;
 
   @ApiProperty({ required: false })

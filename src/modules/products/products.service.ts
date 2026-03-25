@@ -63,6 +63,7 @@ export class ProductsService {
     const {
       search,
       category,
+      categories,
       brand,
       minPrice,
       maxPrice,
@@ -108,6 +109,11 @@ export class ProductsService {
 
     if (category) {
       queryBuilder.andWhere("category.slug = :category", { category });
+    }
+
+    if (categories) {
+      const categoryList = categories.split(',').map((c) => c.trim());
+      queryBuilder.andWhere("category.slug IN (:...categories)", { categories: categoryList });
     }
 
     if (brand) {
