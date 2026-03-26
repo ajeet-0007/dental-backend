@@ -14,6 +14,7 @@ import { Inventory } from "./inventory.entity";
 import { Review } from "./review.entity";
 import { Cart } from "./cart.entity";
 import { OrderItem } from "./order-item.entity";
+import { ProductOption } from "./product-option.entity";
 
 @Entity("products")
 export class Product {
@@ -69,7 +70,13 @@ export class Product {
   returnDays: number;
 
   @Column({ nullable: true })
+  expiresAt: Date;
+
+  @Column({ nullable: true })
   categoryId: string;
+
+  @Column({ name: 'hasVariants', default: false })
+  hasVariants: boolean;
 
   @ManyToOne(() => Category, (category) => category.products)
   @JoinColumn({ name: "categoryId" })
@@ -77,6 +84,9 @@ export class Product {
 
   @OneToMany(() => ProductVariant, (variant) => variant.product)
   variants: ProductVariant[];
+
+  @OneToMany(() => ProductOption, (option) => option.product)
+  options: ProductOption[];
 
   @OneToMany(() => Inventory, (inventory) => inventory.product)
   inventories: Inventory[];

@@ -6,12 +6,19 @@ import {
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, Like, ILike, MoreThanOrEqual, LessThanOrEqual, In, DataSource } from "typeorm";
 import { Product, ProductVariant, Inventory, Category } from "../../database/entities";
+import { ProductOption } from "../../database/entities/product-option.entity";
+import { ProductOptionValue } from "../../database/entities/product-option-value.entity";
+import { VariantOption } from "../../database/entities/variant-option.entity";
 import {
   CreateProductDto,
   UpdateProductDto,
   CreateProductVariantDto,
   UpdateProductVariantDto,
   ProductQueryDto,
+  CreateProductWithVariantsDto,
+  CreateVariantDto,
+  ProductOptionDto,
+  ProductOptionValueDto,
 } from "./dto/product.dto";
 import { slugify, generateSKU } from "../../common/utils/slugify";
 
@@ -26,6 +33,12 @@ export class ProductsService {
     private inventoryRepository: Repository<Inventory>,
     @InjectRepository(Category)
     private categoryRepository: Repository<Category>,
+    @InjectRepository(ProductOption)
+    private productOptionRepository: Repository<ProductOption>,
+    @InjectRepository(ProductOptionValue)
+    private productOptionValueRepository: Repository<ProductOptionValue>,
+    @InjectRepository(VariantOption)
+    private variantOptionRepository: Repository<VariantOption>,
     private dataSource: DataSource,
   ) {}
 
@@ -61,6 +74,164 @@ export class ProductsService {
     return savedProduct;
   }
 
+  async createWithVariants(
+    dto: CreateProductWithVariantsDto,
+  ): Promise<any> {
+    const slug = dto.slug || slugify(dto.name);
+
+    const existingProduct = await this.productRepository.findOne({
+      where: { slug },
+    });
+
+    if (existingProduct) {
+      throw new ConflictException("Product with this slug already exists");
+    }
+
+    const hasVariants = dto.options && dto.options.length > 0 && dto.variants && dto.variants.length > 0;
+    const sku = dto.sku || generateSKU("PROD");
+
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const product = queryRunner.manager.create(Product, {
+        name: dto.name,
+        slug,
+        sku,
+        description: dto.description,
+        shortDescription: dto.shortDescription,
+        price: dto.price || 0,
+        sellingPrice: dto.sellingPrice || dto.price || 0,
+        mrp: dto.mrp || dto.price || 0,
+        brand: dto.brand,
+        unit: dto.unit || 'unit',
+        images: dto.images,
+        isFeatured: dto.isFeatured || false,
+        categoryId: dto.categoryId,
+        hasVariants,
+      });
+
+      const savedProduct = await queryRunner.manager.save(Product, product);
+
+      await queryRunner.manager.save(Inventory, {
+        productId: String(savedProduct.id),
+        quantity: 0,
+        warehouseLocation: "default",
+      });
+
+      const createdOptions: any[] = [];
+
+      if (dto.options && dto.options.length > 0) {
+        for (let i = 0; i < dto.options.length; i++) {
+          const opt = dto.options[i];
+          const option = queryRunner.manager.create(ProductOption, {
+            productId: savedProduct.id,
+            name: opt.name,
+            position: i,
+          });
+          const savedOption = await queryRunner.manager.save(ProductOption, option);
+
+          const optionValues: any[] = [];
+          if (opt.values && opt.values.length > 0) {
+            for (let j = 0; j < opt.values.length; j++) {
+              const val = opt.values[j];
+              const optionValue = queryRunner.manager.create(ProductOptionValue, {
+                optionId: savedOption.id,
+                value: typeof val === 'string' ? val : val.value,
+                position: j,
+                hexCode: typeof val === 'object' ? val.hexCode : null,
+                swatchUrl: typeof val === 'object' ? val.swatchUrl : null,
+              });
+              const savedValue = await queryRunner.manager.save(ProductOptionValue, optionValue);
+              optionValues.push(savedValue);
+            }
+          }
+
+          createdOptions.push({
+            ...savedOption,
+            values: optionValues,
+          });
+        }
+      }
+
+      const createdVariants: any[] = [];
+
+      if (dto.variants && dto.variants.length > 0) {
+        for (const variantDto of dto.variants) {
+          const variantSku = variantDto.sku || generateSKU("VAR");
+
+          const variant = queryRunner.manager.create(ProductVariant, {
+            productId: String(savedProduct.id),
+            name: variantDto.name || '',
+            sku: variantSku,
+            price: variantDto.price,
+            sellingPrice: variantDto.sellingPrice || variantDto.price,
+            mrp: variantDto.mrp || variantDto.price,
+            weight: variantDto.weight || 0,
+            weightUnit: variantDto.weightUnit || '',
+            image: variantDto.image,
+            images: variantDto.images,
+            packQuantity: variantDto.packQuantity || 1,
+            isActive: variantDto.isActive ?? true,
+            expiresAt: variantDto.expiresAt ? new Date(variantDto.expiresAt) : null,
+          });
+
+          const savedVariant = await queryRunner.manager.save(ProductVariant, variant) as ProductVariant;
+
+          await queryRunner.manager.save(Inventory, {
+            productId: String(savedProduct.id),
+            productVariantId: savedVariant.id,
+            quantity: 0,
+            warehouseLocation: "default",
+          });
+
+          if (variantDto.options && variantDto.options.length > 0) {
+            const variantOptions: any[] = [];
+            for (const opt of variantDto.options) {
+              const option = createdOptions.find(o => o.name === opt.optionName);
+              if (option) {
+                const optValue = option.values.find((v: ProductOptionValue) => v.value === opt.optionValue);
+                if (optValue) {
+                  const variantOption = queryRunner.manager.create(VariantOption, {
+                    variantId: savedVariant.id,
+                    optionId: option.id,
+                    optionValueId: optValue.id,
+                  });
+                  await queryRunner.manager.save(VariantOption, variantOption);
+                  variantOptions.push({
+                    optionId: option.id,
+                    optionName: option.name,
+                    optionValueId: optValue.id,
+                    optionValue: optValue.value,
+                  });
+                }
+              }
+            }
+          }
+
+          createdVariants.push({
+            ...savedVariant,
+            options: variantDto.options || [],
+          });
+        }
+      }
+
+      await queryRunner.commitTransaction();
+
+      return {
+        ...savedProduct,
+        options: createdOptions,
+        variants: createdVariants,
+      };
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
   async findAll(query: ProductQueryDto) {
     const {
       search,
@@ -93,7 +264,7 @@ export class ProductsService {
       orderDirection = sortMapping[sortBy].order;
     } else if (sortBy) {
       orderField = sortBy;
-      orderDirection = sortOrder || 'DESC';
+      orderDirection = (sortOrder?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC') as 'ASC' | 'DESC';
     }
 
     const queryBuilder = this.productRepository
@@ -226,20 +397,68 @@ export class ProductsService {
     };
   }
 
-  async findOne(id: string): Promise<Product> {
+  private async enrichVariantsWithOptions(variants: any[]): Promise<any[]> {
+    if (!variants || variants.length === 0) {
+      return variants;
+    }
+
+    const variantIds = variants.map(v => String(v.id));
+    const variantOptions = await this.variantOptionRepository.find({
+      where: { variantId: In(variantIds) },
+      relations: ["option", "optionValue"],
+    });
+
+    const variantOptionsMap = new Map<string, any[]>();
+    variantOptions.forEach(vo => {
+      if (!variantOptionsMap.has(vo.variantId)) {
+        variantOptionsMap.set(vo.variantId, []);
+      }
+      variantOptionsMap.get(vo.variantId)!.push({
+        optionId: vo.optionId,
+        optionName: vo.option?.name,
+        optionValueId: vo.optionValueId,
+        optionValue: vo.optionValue?.value,
+        hexCode: vo.optionValue?.hexCode,
+      });
+    });
+
+    return variants.map(variant => ({
+      ...variant,
+      options: variantOptionsMap.get(String(variant.id)) || [],
+    }));
+  }
+
+  private addAvailableOptionsToVariants(variants: any[], options: any[]): any[] {
+    if (!variants || variants.length === 0 || !options || options.length === 0) {
+      return variants;
+    }
+    
+    return variants.map(variant => ({
+      ...variant,
+      availableOptions: options,
+    }));
+  }
+
+  async findOne(id: string): Promise<any> {
     const product = await this.productRepository.findOne({
       where: { id: +id },
-      relations: ["category", "variants", "inventories", "reviews"],
+      relations: ["category", "variants", "inventories", "reviews", "options", "options.values"],
     });
 
     if (!product) {
       throw new NotFoundException("Product not found");
     }
 
+    product.variants = await this.enrichVariantsWithOptions(product.variants);
+    
+    if (product.hasVariants && product.variants && product.variants.length > 0) {
+      product.variants = this.addAvailableOptionsToVariants(product.variants, product.options || []);
+    }
+    
     return product;
   }
 
-  async findBySlug(slug: string): Promise<Product> {
+  async findBySlug(slug: string): Promise<any> {
     const product = await this.productRepository.findOne({
       where: { slug },
       relations: [
@@ -248,6 +467,8 @@ export class ProductsService {
         "inventories",
         "reviews",
         "reviews.user",
+        "options",
+        "options.values",
       ],
     });
 
@@ -255,6 +476,12 @@ export class ProductsService {
       throw new NotFoundException("Product not found");
     }
 
+    product.variants = await this.enrichVariantsWithOptions(product.variants);
+    
+    if (product.hasVariants && product.variants && product.variants.length > 0) {
+      product.variants = this.addAvailableOptionsToVariants(product.variants, product.options || []);
+    }
+    
     return product;
   }
 
@@ -269,8 +496,64 @@ export class ProductsService {
         updateProductDto.slug || slugify(updateProductDto.name);
     }
 
+    if (updateProductDto.options !== undefined) {
+      await this.updateProductOptions(product.id, updateProductDto.options);
+      updateProductDto.hasVariants = updateProductDto.options.length > 0;
+    }
+
     Object.assign(product, updateProductDto);
     return this.productRepository.save(product);
+  }
+
+  private async updateProductOptions(productId: number, options: any[]): Promise<void> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const existingOptions = await this.productOptionRepository.find({
+        where: { productId },
+        relations: ['values'],
+      });
+
+      for (const existingOpt of existingOptions) {
+        if (existingOpt.values) {
+          await queryRunner.manager.remove(existingOpt.values);
+        }
+        await queryRunner.manager.remove(existingOpt);
+      }
+
+      for (let i = 0; i < options.length; i++) {
+        const optData = options[i];
+        const option = queryRunner.manager.create(ProductOption, {
+          productId,
+          name: optData.name,
+          position: i,
+        });
+        const savedOption = await queryRunner.manager.save(option);
+
+        if (optData.values && optData.values.length > 0) {
+          for (let j = 0; j < optData.values.length; j++) {
+            const valData = optData.values[j];
+            const optionValue = queryRunner.manager.create(ProductOptionValue, {
+              optionId: savedOption.id,
+              value: valData.value,
+              hexCode: valData.hexCode || null,
+              swatchUrl: valData.swatchUrl || null,
+              position: j,
+            });
+            await queryRunner.manager.save(optionValue);
+          }
+        }
+      }
+
+      await queryRunner.commitTransaction();
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   async remove(id: string): Promise<void> {
@@ -291,42 +574,214 @@ export class ProductsService {
 
     const sku = createVariantDto.sku || generateSKU("VAR");
 
-    const query = `
-      INSERT INTO product_variants 
-      (productId, name, sku, price, sellingPrice, mrp, weight, weightUnit, color, size, flavor, packQuantity, isActive, createdAt, updatedAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
-    `;
-
-    await this.dataSource.query(query, [
-      createVariantDto.productId,
-      createVariantDto.name || '',
+    const variant = this.productVariantRepository.create({
+      productId: String(product.id),
+      name: createVariantDto.name || '',
       sku,
-      createVariantDto.price,
-      createVariantDto.sellingPrice || createVariantDto.price,
-      createVariantDto.mrp || createVariantDto.price,
-      createVariantDto.weight || 0,
-      createVariantDto.weightUnit || '',
-      createVariantDto.color || '',
-      createVariantDto.size || '',
-      createVariantDto.flavor || '',
-      createVariantDto.packQuantity || 1,
-      createVariantDto.isActive ?? true,
-    ]);
-
-    const variants = await this.productVariantRepository.find({
-      where: { productId: createVariantDto.productId },
-      order: { createdAt: 'DESC' },
-      take: 1,
+      price: createVariantDto.price,
+      sellingPrice: createVariantDto.sellingPrice || createVariantDto.price,
+      mrp: createVariantDto.mrp || createVariantDto.price,
+      weight: createVariantDto.weight || 0,
+      weightUnit: createVariantDto.weightUnit || '',
+      color: createVariantDto.color || '',
+      size: createVariantDto.size || '',
+      flavor: createVariantDto.flavor || '',
+      packQuantity: createVariantDto.packQuantity || 1,
+      isActive: createVariantDto.isActive ?? true,
+      expiresAt: createVariantDto.expiresAt ? new Date(createVariantDto.expiresAt) : null,
     });
 
-    return variants[0];
+    const savedVariant = await this.productVariantRepository.save(variant);
+
+    const variantOptions: any[] = [];
+
+    if (createVariantDto.options && createVariantDto.options.length > 0) {
+      const productOptions = await this.productOptionRepository.find({
+        where: { productId: product.id },
+        relations: ['values'],
+      });
+
+      for (const optInput of createVariantDto.options) {
+        const option = productOptions.find(o => o.name.toLowerCase() === optInput.optionName.toLowerCase());
+        if (option) {
+          const optValue = option.values?.find(v => v.value === optInput.optionValue);
+          if (optValue) {
+            const variantOption = this.variantOptionRepository.create({
+              variantId: savedVariant.id,
+              optionId: option.id,
+              optionValueId: optValue.id,
+            });
+            await this.variantOptionRepository.save(variantOption);
+            variantOptions.push({
+              optionId: option.id,
+              optionName: option.name,
+              optionValueId: optValue.id,
+              optionValue: optValue.value,
+            });
+          }
+        }
+      }
+    }
+
+    product.hasVariants = true;
+    await this.productRepository.save(product);
+
+    await this.inventoryRepository.save({
+      productId: String(product.id),
+      productVariantId: savedVariant.id,
+      quantity: 0,
+      warehouseLocation: "default",
+    });
+
+    return {
+      ...savedVariant,
+      options: variantOptions,
+    } as ProductVariant;
   }
 
-  async getProductVariants(productId: string): Promise<ProductVariant[]> {
-    return this.productVariantRepository.find({
+  async createVariantsBulk(
+    variantDtos: CreateProductVariantDto[],
+  ): Promise<ProductVariant[]> {
+    if (variantDtos.length === 0) {
+      return [];
+    }
+
+    const productId = variantDtos[0].productId;
+    const product = await this.productRepository.findOne({
+      where: { id: +productId },
+    });
+
+    if (!product) {
+      throw new NotFoundException("Product not found");
+    }
+
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const savedVariants: ProductVariant[] = [];
+
+      const productOptions = await this.productOptionRepository.find({
+        where: { productId: product.id },
+        relations: ['values'],
+      });
+
+      for (const dto of variantDtos) {
+        const sku = dto.sku || generateSKU("VAR");
+
+        const variant = queryRunner.manager.create(ProductVariant, {
+          productId: String(product.id),
+          name: dto.name || '',
+          sku,
+          price: dto.price,
+          sellingPrice: dto.sellingPrice || dto.price,
+          mrp: dto.mrp || dto.price,
+          weight: dto.weight || 0,
+          weightUnit: dto.weightUnit || '',
+          color: dto.color || '',
+          size: dto.size || '',
+          flavor: dto.flavor || '',
+          packQuantity: dto.packQuantity || 1,
+          isActive: dto.isActive ?? true,
+          expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
+        });
+
+        const savedVariant = await queryRunner.manager.save(ProductVariant, variant) as ProductVariant;
+
+        await queryRunner.manager.save(Inventory, {
+          productId: String(product.id),
+          productVariantId: savedVariant.id,
+          quantity: 0,
+          warehouseLocation: "default",
+        });
+
+        const variantOptions: any[] = [];
+
+        if (dto.options && dto.options.length > 0) {
+          for (const optInput of dto.options) {
+            const option = productOptions.find(o => o.name.toLowerCase() === optInput.optionName.toLowerCase());
+            if (option) {
+              const optValue = option.values?.find(v => v.value === optInput.optionValue);
+              if (optValue) {
+                const variantOption = queryRunner.manager.create(VariantOption, {
+                  variantId: savedVariant.id,
+                  optionId: option.id,
+                  optionValueId: optValue.id,
+                });
+                await queryRunner.manager.save(VariantOption, variantOption);
+                variantOptions.push({
+                  optionId: option.id,
+                  optionName: option.name,
+                  optionValueId: optValue.id,
+                  optionValue: optValue.value,
+                });
+              }
+            }
+          }
+        } else if ((dto as any).attributes) {
+          const attrs = (dto as any).attributes as Record<string, string>;
+          for (const [attrType, value] of Object.entries(attrs)) {
+            const option = productOptions.find(o => o.name.toLowerCase() === attrType.toLowerCase());
+            if (option) {
+              const optValue = option.values?.find(v => v.value === value);
+              if (optValue) {
+                const variantOption = queryRunner.manager.create(VariantOption, {
+                  variantId: savedVariant.id,
+                  optionId: option.id,
+                  optionValueId: optValue.id,
+                });
+                await queryRunner.manager.save(VariantOption, variantOption);
+              }
+            }
+          }
+        }
+
+        savedVariants.push({
+          ...savedVariant,
+          options: variantOptions,
+        } as any);
+      }
+
+      product.hasVariants = true;
+      await queryRunner.manager.save(Product, product);
+
+      await queryRunner.commitTransaction();
+      return savedVariants;
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  async getProductVariants(productId: string): Promise<any[]> {
+    const product = await this.productRepository.findOne({
+      where: { id: +productId },
+      relations: ["options", "options.values"],
+    });
+
+    if (!product) {
+      return [];
+    }
+
+    const variants = await this.productVariantRepository.find({
       where: { productId, isActive: true },
       order: { createdAt: 'ASC' },
     });
+
+    if (variants.length === 0) {
+      return [];
+    }
+
+    const enrichedVariants = await this.enrichVariantsWithOptions(variants);
+    
+    if (product.hasVariants && product.options && product.options.length > 0) {
+      return this.addAvailableOptionsToVariants(enrichedVariants, product.options);
+    }
+
+    return enrichedVariants;
   }
 
   async updateVariant(
@@ -337,6 +792,10 @@ export class ProductsService {
     
     if (!variant) {
       throw new NotFoundException('Variant not found');
+    }
+
+    if (updateVariantDto.expiresAt === '') {
+      updateVariantDto.expiresAt = undefined;
     }
 
     Object.assign(variant, updateVariantDto);
@@ -350,7 +809,29 @@ export class ProductsService {
       throw new NotFoundException('Variant not found');
     }
 
+    const productId = variant.productId;
     await this.productVariantRepository.remove(variant);
+
+    const remainingVariants = await this.productVariantRepository.find({
+      where: { productId },
+    });
+
+    if (remainingVariants.length === 0) {
+      await this.productRepository.update(productId, { hasVariants: false });
+    }
+  }
+
+  async updateVariantInventory(variantId: string, quantity: number): Promise<Inventory> {
+    const inventory = await this.inventoryRepository.findOne({
+      where: { productVariantId: variantId },
+    });
+
+    if (!inventory) {
+      throw new NotFoundException('Inventory not found for this variant');
+    }
+
+    inventory.quantity = quantity;
+    return this.inventoryRepository.save(inventory);
   }
 
   async getFeaturedProducts(limit = 10): Promise<Product[]> {

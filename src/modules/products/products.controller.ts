@@ -17,6 +17,7 @@ import {
   CreateProductVariantDto,
   UpdateProductVariantDto,
   ProductQueryDto,
+  CreateProductWithVariantsDto,
 } from './dto/product.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -85,6 +86,15 @@ export class ProductsController {
     return this.productsService.create(createProductDto);
   }
 
+  @Post('with-variants')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create product with variants in single transaction (Admin only)' })
+  async createWithVariants(@Body() createProductDto: CreateProductWithVariantsDto) {
+    return this.productsService.createWithVariants(createProductDto);
+  }
+
   @Post('variants')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
@@ -92,6 +102,15 @@ export class ProductsController {
   @ApiOperation({ summary: 'Create product variant (Admin only)' })
   async createVariant(@Body() createVariantDto: CreateProductVariantDto) {
     return this.productsService.createVariant(createVariantDto);
+  }
+
+  @Post('variants/bulk')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create multiple product variants (Admin only)' })
+  async createVariantsBulk(@Body() body: { variants: CreateProductVariantDto[] }) {
+    return this.productsService.createVariantsBulk(body.variants);
   }
 
   @Put(':id')
@@ -134,5 +153,17 @@ export class ProductsController {
   @ApiOperation({ summary: 'Delete product variant (Admin only)' })
   async removeVariant(@Param('id') id: string) {
     return this.productsService.removeVariant(id);
+  }
+
+  @Put('variants/:id/inventory')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update variant inventory (Admin only)' })
+  async updateVariantInventory(
+    @Param('id') id: string,
+    @Body() body: { quantity: number },
+  ) {
+    return this.productsService.updateVariantInventory(id, body.quantity);
   }
 }

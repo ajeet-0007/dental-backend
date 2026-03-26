@@ -1,5 +1,17 @@
-import { IsString, IsNotEmpty, IsOptional, IsBoolean, IsNumber, IsArray } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsBoolean, IsNumber, IsArray, IsObject } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+
+export class VariantOptionInputDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  optionName: string;
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  optionValue: string;
+}
 
 export class CreateProductDto {
   @ApiProperty()
@@ -73,13 +85,30 @@ export class CreateProductDto {
 
   @ApiProperty({ required: false })
   @IsOptional()
+  @IsString()
+  expiresAt?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
   @IsNumber()
-  returnDays?: number;
+  stock?: number;
 
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
   categoryId?: string;
+}
+
+export class ProductOptionDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  name: string;
+
+  @ApiProperty({ required: false, type: [String] })
+  @IsOptional()
+  @IsArray()
+  values?: (string | { value: string; hexCode?: string; swatchUrl?: string })[];
 }
 
 export class UpdateProductDto {
@@ -166,7 +195,22 @@ export class UpdateProductDto {
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
+  expiresAt?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
   categoryId?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsBoolean()
+  hasVariants?: boolean;
+
+  @ApiProperty({ required: false, type: [ProductOptionDto] })
+  @IsOptional()
+  @IsArray()
+  options?: ProductOptionDto[];
 }
 
 export class CreateProductVariantDto {
@@ -243,6 +287,21 @@ export class CreateProductVariantDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  expiresAt?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsObject()
+  attributes?: Record<string, string>;
+
+  @ApiProperty({ required: false, type: [VariantOptionInputDto] })
+  @IsOptional()
+  @IsArray()
+  options?: VariantOptionInputDto[];
 }
 
 export class UpdateProductVariantDto {
@@ -315,6 +374,26 @@ export class UpdateProductVariantDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  expiresAt?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  categoryId?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsBoolean()
+  hasVariants?: boolean;
+
+  @ApiProperty({ required: false, type: [ProductOptionDto] })
+  @IsOptional()
+  @IsArray()
+  options?: ProductOptionDto[];
 }
 
 export class ProductQueryDto {
@@ -371,5 +450,305 @@ export class ProductQueryDto {
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
-  sortOrder?: 'ASC' | 'DESC';
+  sortOrder?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  categoryId?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsBoolean()
+  hasVariants?: boolean;
+
+  @ApiProperty({ required: false, type: [ProductOptionDto] })
+  @IsOptional()
+  @IsArray()
+  options?: ProductOptionDto[];
+}
+
+export class ProductOptionValueDto {
+  @ApiProperty()
+  id: number;
+
+  @ApiProperty()
+  value: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  hexCode?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  swatchUrl?: string;
+
+  @ApiProperty()
+  position: number;
+}
+
+export class CreateVariantDto {
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  sku?: string;
+
+  @ApiProperty()
+  @IsNumber()
+  price: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsNumber()
+  sellingPrice?: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsNumber()
+  mrp?: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsNumber()
+  weight?: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  weightUnit?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  image?: string;
+
+  @ApiProperty({ required: false, type: [String] })
+  @IsOptional()
+  @IsArray()
+  images?: string[];
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsNumber()
+  packQuantity?: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  expiresAt?: string;
+
+  @ApiProperty({ required: false, type: [VariantOptionInputDto] })
+  @IsOptional()
+  @IsArray()
+  options?: VariantOptionInputDto[];
+}
+
+export class CreateProductWithVariantsDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  name: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  slug?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  shortDescription?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  sku?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsNumber()
+  price?: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsNumber()
+  sellingPrice?: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsNumber()
+  mrp?: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  brand?: string;
+
+  @ApiProperty({ default: 'unit' })
+  @IsOptional()
+  @IsString()
+  unit?: string;
+
+  @ApiProperty({ required: false, type: [String] })
+  @IsOptional()
+  @IsArray()
+  images?: string[];
+
+  @ApiProperty({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  isFeatured?: boolean;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  categoryId?: string;
+
+  @ApiProperty({ required: false, type: [ProductOptionDto] })
+  @IsOptional()
+  @IsArray()
+  options?: ProductOptionDto[];
+
+  @ApiProperty({ required: false, type: [CreateVariantDto] })
+  @IsOptional()
+  @IsArray()
+  variants?: CreateVariantDto[];
+}
+
+export class VariantWithAttributesDto {
+  @ApiProperty()
+  id: string;
+
+  @ApiProperty()
+  productId: string;
+
+  @ApiProperty({ required: false })
+  name?: string;
+
+  @ApiProperty({ required: false })
+  sku?: string;
+
+  @ApiProperty()
+  price: number;
+
+  @ApiProperty()
+  sellingPrice: number;
+
+  @ApiProperty()
+  mrp: number;
+
+  @ApiProperty({ required: false })
+  weight?: number;
+
+  @ApiProperty({ required: false })
+  weightUnit?: string;
+
+  @ApiProperty({ required: false })
+  image?: string;
+
+  @ApiProperty({ required: false, type: [String] })
+  images?: string[];
+
+  @ApiProperty()
+  packQuantity: number;
+
+  @ApiProperty()
+  isActive: boolean;
+
+  @ApiProperty({ required: false })
+  expiresAt?: string;
+
+  @ApiProperty({ required: false })
+  createdAt?: Date;
+
+  @ApiProperty({ required: false })
+  updatedAt?: Date;
+
+  @ApiProperty({ required: false })
+  attributes?: Record<string, string>;
+}
+
+export class ProductWithVariantsDto {
+  @ApiProperty()
+  id: number;
+
+  @ApiProperty()
+  name: string;
+
+  @ApiProperty()
+  slug: string;
+
+  @ApiProperty({ required: false })
+  description?: string;
+
+  @ApiProperty({ required: false })
+  shortDescription?: string;
+
+  @ApiProperty({ required: false })
+  sku?: string;
+
+  @ApiProperty()
+  price: number;
+
+  @ApiProperty()
+  sellingPrice: number;
+
+  @ApiProperty()
+  mrp: number;
+
+  @ApiProperty({ required: false })
+  brand?: string;
+
+  @ApiProperty()
+  unit: string;
+
+  @ApiProperty({ required: false, type: [String] })
+  images?: string[];
+
+  @ApiProperty()
+  isActive: boolean;
+
+  @ApiProperty()
+  isFeatured: boolean;
+
+  @ApiProperty()
+  hasVariants: boolean;
+
+  @ApiProperty({ required: false })
+  expiresAt?: string;
+
+  @ApiProperty({ required: false })
+  category?: any;
+
+  @ApiProperty({ required: false, type: [ProductOptionDto] })
+  options?: ProductOptionDto[];
+
+  @ApiProperty({ required: false, type: [VariantWithAttributesDto] })
+  variants?: VariantWithAttributesDto[];
+
+  @ApiProperty({ required: false })
+  inventories?: any[];
+
+  @ApiProperty()
+  createdAt?: Date;
+
+  @ApiProperty()
+  updatedAt?: Date;
 }

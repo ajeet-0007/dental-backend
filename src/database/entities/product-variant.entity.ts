@@ -5,9 +5,11 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   ManyToOne,
+  OneToMany,
   JoinColumn,
 } from 'typeorm';
 import { Product } from './product.entity';
+import { VariantOption } from './variant-option.entity';
 
 @Entity('product_variants')
 export class ProductVariant {
@@ -62,6 +64,15 @@ export class ProductVariant {
 
   @Column({ default: true })
   isActive: boolean;
+
+  @Column({ nullable: true, type: 'datetime' })
+  expiresAt: Date | null;
+
+  @Column({ nullable: true, name: 'variantKey' })
+  variantKey: string;
+
+  @OneToMany(() => VariantOption, (vo) => vo.variant)
+  variantOptions: VariantOption[];
 
   @CreateDateColumn()
   createdAt: Date;

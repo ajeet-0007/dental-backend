@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
+import { Repository, DataSource } from "typeorm";
 import { Order, OrderStatus } from "../../database/entities/order.entity";
 import { Payment } from "../../database/entities/payment.entity";
 import { Product } from "../../database/entities/product.entity";
@@ -8,6 +8,8 @@ import { User, UserRole } from "../../database/entities/user.entity";
 import { OrderItem } from "../../database/entities/order-item.entity";
 import { Inventory } from "../../database/entities/inventory.entity";
 import { Category } from "../../database/entities/category.entity";
+import { ProductOption } from "../../database/entities/product-option.entity";
+import { ProductOptionValue } from "../../database/entities/product-option-value.entity";
 
 @Injectable()
 export class AdminService {
@@ -26,6 +28,11 @@ export class AdminService {
     private inventoryRepository: Repository<Inventory>,
     @InjectRepository(Category)
     private categoryRepository: Repository<Category>,
+    @InjectRepository(ProductOption)
+    private productOptionRepository: Repository<ProductOption>,
+    @InjectRepository(ProductOptionValue)
+    private productOptionValueRepository: Repository<ProductOptionValue>,
+    private dataSource: DataSource,
   ) {}
 
   async getDashboardStats() {
@@ -204,6 +211,9 @@ export class AdminService {
     const query = this.productRepository
       .createQueryBuilder("product")
       .leftJoinAndSelect("product.category", "category")
+      .leftJoinAndSelect("product.options", "options")
+      .leftJoinAndSelect("options.values", "optionValues")
+      .leftJoinAndSelect("product.variants", "variants")
       .orderBy("product.createdAt", "DESC")
       .skip((page - 1) * limit)
       .take(limit);
@@ -223,8 +233,42 @@ export class AdminService {
 
     const [products, total] = await query.getManyAndCount();
 
+    const enrichedProducts = products.map((product: any) => {
+      const variants = product.variants || [];
+      const variantCount = variants.length;
+      
+      let minVariantPrice = 0;
+      let maxVariantPrice = 0;
+      let variantPriceRange = "";
+
+      if (variantCount > 0) {
+        const prices = variants
+          .map((v: any) => v.sellingPrice)
+          .filter((p: number) => p > 0);
+        
+        if (prices.length > 0) {
+          minVariantPrice = Math.min(...prices);
+          maxVariantPrice = Math.max(...prices);
+          
+          if (minVariantPrice === maxVariantPrice) {
+            variantPriceRange = `₹${minVariantPrice}`;
+          } else {
+            variantPriceRange = `₹${minVariantPrice} - ₹${maxVariantPrice}`;
+          }
+        }
+      }
+
+      return {
+        ...product,
+        variantCount,
+        minVariantPrice,
+        maxVariantPrice,
+        variantPriceRange,
+      };
+    });
+
     return {
-      products,
+      products: enrichedProducts,
       total,
       page,
       totalPages: Math.ceil(total / limit),
@@ -260,9 +304,77 @@ export class AdminService {
       throw new Error("Product not found");
     }
 
-    Object.assign(product, productData);
+    const { options, ...restData } = productData;
+
+    if (options !== undefined) {
+      await this.updateProductOptions(productId, options);
+      restData.hasVariants = options.length > 0;
+    }
+
+    Object.assign(product, restData);
     await this.productRepository.save(product);
-    return product;
+
+    const updatedProduct = await this.productRepository.findOne({
+      where: { id: productId },
+      relations: ["options", "options.values"],
+    });
+
+    return updatedProduct;
+  }
+
+  private async updateProductOptions(productId: number, options: any[]): Promise<void> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const numericProductId = Number(productId);
+      
+      const existingOptions = await this.productOptionRepository.find({
+        where: { productId: numericProductId },
+        relations: ['values'],
+      });
+
+      for (const existingOpt of existingOptions) {
+        if (existingOpt.values) {
+          await queryRunner.manager.remove(existingOpt.values);
+        }
+        await queryRunner.manager.remove(existingOpt);
+      }
+
+      for (let i = 0; i < options.length; i++) {
+        const optData = options[i];
+        
+        await queryRunner.query(
+          `INSERT INTO product_options (productId, name, position) VALUES (?, ?, ?)`,
+          [numericProductId, optData.name, i]
+        );
+        
+        const [insertResult] = await queryRunner.query('SELECT LAST_INSERT_ID() as id');
+        const savedOptionId = insertResult.id;
+
+        if (optData.values && optData.values.length > 0) {
+          for (let j = 0; j < optData.values.length; j++) {
+            const valData = optData.values[j];
+            const value = valData.value || valData;
+            const hexCode = valData.hexCode || null;
+            const swatchUrl = valData.swatchUrl || null;
+            
+            await queryRunner.query(
+              `INSERT INTO product_option_values (optionId, value, hexCode, swatchUrl, position) VALUES (?, ?, ?, ?, ?)`,
+              [savedOptionId, value, hexCode, swatchUrl, j]
+            );
+          }
+        }
+      }
+
+      await queryRunner.commitTransaction();
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   async deleteProduct(productId: number) {
