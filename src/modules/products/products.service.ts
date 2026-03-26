@@ -4,7 +4,7 @@ import {
   ConflictException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository, Like, ILike, MoreThanOrEqual, LessThanOrEqual, In } from "typeorm";
+import { Repository, Like, ILike, MoreThanOrEqual, LessThanOrEqual, In, DataSource } from "typeorm";
 import { Product, ProductVariant, Inventory, Category } from "../../database/entities";
 import {
   CreateProductDto,
@@ -26,6 +26,7 @@ export class ProductsService {
     private inventoryRepository: Repository<Inventory>,
     @InjectRepository(Category)
     private categoryRepository: Repository<Category>,
+    private dataSource: DataSource,
   ) {}
 
   async create(createProductDto: CreateProductDto): Promise<Product> {
@@ -280,19 +281,45 @@ export class ProductsService {
   async createVariant(
     createVariantDto: CreateProductVariantDto,
   ): Promise<ProductVariant> {
-    const product = await this.findOne(createVariantDto.productId);
+    const product = await this.productRepository.findOne({
+      where: { id: +createVariantDto.productId },
+    });
+
+    if (!product) {
+      throw new NotFoundException("Product not found");
+    }
 
     const sku = createVariantDto.sku || generateSKU("VAR");
 
-    const variant = this.productVariantRepository.create({
-      ...createVariantDto,
+    const query = `
+      INSERT INTO product_variants 
+      (productId, name, sku, price, sellingPrice, mrp, weight, weightUnit, color, size, flavor, packQuantity, isActive, createdAt, updatedAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+    `;
+
+    await this.dataSource.query(query, [
+      createVariantDto.productId,
+      createVariantDto.name || '',
       sku,
-      sellingPrice: createVariantDto.sellingPrice || createVariantDto.price,
-      mrp: createVariantDto.mrp || createVariantDto.price,
-      packQuantity: createVariantDto.packQuantity || 1,
+      createVariantDto.price,
+      createVariantDto.sellingPrice || createVariantDto.price,
+      createVariantDto.mrp || createVariantDto.price,
+      createVariantDto.weight || 0,
+      createVariantDto.weightUnit || '',
+      createVariantDto.color || '',
+      createVariantDto.size || '',
+      createVariantDto.flavor || '',
+      createVariantDto.packQuantity || 1,
+      createVariantDto.isActive ?? true,
+    ]);
+
+    const variants = await this.productVariantRepository.find({
+      where: { productId: createVariantDto.productId },
+      order: { createdAt: 'DESC' },
+      take: 1,
     });
 
-    return this.productVariantRepository.save(variant);
+    return variants[0];
   }
 
   async getProductVariants(productId: string): Promise<ProductVariant[]> {

@@ -238,6 +238,11 @@ export class CreateProductVariantDto {
   @IsOptional()
   @IsNumber()
   packQuantity?: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }
 
 export class UpdateProductVariantDto {

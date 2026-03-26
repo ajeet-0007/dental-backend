@@ -14,8 +14,8 @@ export class InventoryService {
   ) {}
 
   async create(createInventoryDto: CreateInventoryDto): Promise<Inventory> {
-    const inventory = this.inventoryRepository.create(createInventoryDto);
-    return this.inventoryRepository.save(inventory);
+    const inventory = this.inventoryRepository.create(createInventoryDto as any);
+    return this.inventoryRepository.save(inventory) as any;
   }
 
   async findAll(page = 1, limit = 10): Promise<{ inventory: Inventory[]; total: number }> {
