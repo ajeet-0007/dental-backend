@@ -6,7 +6,9 @@ import {
   UpdateDateColumn,
   ManyToOne,
   OneToMany,
+  ManyToMany,
   JoinColumn,
+  JoinTable,
 } from "typeorm";
 import { Category } from "./category.entity";
 import { ProductVariant } from "./product-variant.entity";
@@ -15,6 +17,8 @@ import { Review } from "./review.entity";
 import { Cart } from "./cart.entity";
 import { OrderItem } from "./order-item.entity";
 import { ProductOption } from "./product-option.entity";
+import { Brand } from "./brand.entity";
+import { Department } from "./department.entity";
 
 @Entity("products")
 export class Product {
@@ -47,6 +51,13 @@ export class Product {
 
   @Column({ nullable: true })
   brand: string;
+
+  @Column({ nullable: true })
+  brandId: number;
+
+  @ManyToOne(() => Brand, (brand) => brand.products)
+  @JoinColumn({ name: "brandId" })
+  brandEntity: Brand;
 
   @Column({ default: "unit" })
   unit: string;
@@ -81,6 +92,14 @@ export class Product {
   @ManyToOne(() => Category, (category) => category.products)
   @JoinColumn({ name: "categoryId" })
   category: Category;
+
+  @ManyToMany(() => Department, (department) => department.products)
+  @JoinTable({
+    name: "product_departments",
+    joinColumn: { name: "productId", referencedColumnName: "id" },
+    inverseJoinColumn: { name: "departmentId", referencedColumnName: "id" },
+  })
+  departments: Department[];
 
   @OneToMany(() => ProductVariant, (variant) => variant.product)
   variants: ProductVariant[];

@@ -13,3 +13,5 @@ export * from './review.entity';
 export * from './shipping-method.entity';
 export * from './wishlist.entity';
 export * from './banner.entity';
+export * from './brand.entity';
+export * from './department.entity';

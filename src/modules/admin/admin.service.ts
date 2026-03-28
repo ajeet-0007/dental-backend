@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository, DataSource } from "typeorm";
+import { Repository, DataSource, In } from "typeorm";
 import { Order, OrderStatus } from "../../database/entities/order.entity";
 import { Payment } from "../../database/entities/payment.entity";
 import { Product } from "../../database/entities/product.entity";
@@ -10,6 +10,7 @@ import { Inventory } from "../../database/entities/inventory.entity";
 import { Category } from "../../database/entities/category.entity";
 import { ProductOption } from "../../database/entities/product-option.entity";
 import { ProductOptionValue } from "../../database/entities/product-option-value.entity";
+import { Department } from "../../database/entities/department.entity";
 
 @Injectable()
 export class AdminService {
@@ -32,6 +33,8 @@ export class AdminService {
     private productOptionRepository: Repository<ProductOption>,
     @InjectRepository(ProductOptionValue)
     private productOptionValueRepository: Repository<ProductOptionValue>,
+    @InjectRepository(Department)
+    private departmentRepository: Repository<Department>,
     private dataSource: DataSource,
   ) {}
 
@@ -211,6 +214,8 @@ export class AdminService {
     const query = this.productRepository
       .createQueryBuilder("product")
       .leftJoinAndSelect("product.category", "category")
+      .leftJoinAndSelect("product.brandEntity", "brandEntity")
+      .leftJoinAndSelect("product.departments", "departments")
       .leftJoinAndSelect("product.options", "options")
       .leftJoinAndSelect("options.values", "optionValues")
       .leftJoinAndSelect("product.variants", "variants")
@@ -291,9 +296,20 @@ export class AdminService {
       productData.slug = slug;
     }
 
-    const product = this.productRepository.create(productData);
-    await this.productRepository.save(product);
-    return product;
+    const { departmentIds, ...restData } = productData;
+
+    const product = this.productRepository.create(restData);
+    const savedProduct = (await this.productRepository.save(product)) as unknown as Product;
+
+    if (departmentIds && departmentIds.length > 0) {
+      const departments = await this.departmentRepository.findBy({
+        id: In(departmentIds),
+      });
+      savedProduct.departments = departments;
+      await this.productRepository.save(savedProduct);
+    }
+
+    return savedProduct;
   }
 
   async updateProduct(productId: number, productData: any) {
@@ -304,7 +320,7 @@ export class AdminService {
       throw new Error("Product not found");
     }
 
-    const { options, ...restData } = productData;
+    const { options, departmentIds, ...restData } = productData;
 
     if (options !== undefined) {
       await this.updateProductOptions(productId, options);
@@ -314,9 +330,21 @@ export class AdminService {
     Object.assign(product, restData);
     await this.productRepository.save(product);
 
+    if (departmentIds !== undefined) {
+      if (departmentIds && departmentIds.length > 0) {
+        const departments = await this.departmentRepository.findBy({
+          id: In(departmentIds),
+        });
+        product.departments = departments;
+      } else {
+        product.departments = [];
+      }
+      await this.productRepository.save(product);
+    }
+
     const updatedProduct = await this.productRepository.findOne({
       where: { id: productId },
-      relations: ["options", "options.values"],
+      relations: ["options", "options.values", "departments"],
     });
 
     return updatedProduct;

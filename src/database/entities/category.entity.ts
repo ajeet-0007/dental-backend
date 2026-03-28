@@ -6,9 +6,11 @@ import {
   UpdateDateColumn,
   ManyToOne,
   OneToMany,
+  ManyToMany,
   JoinColumn,
 } from "typeorm";
 import { Product } from "./product.entity";
+import { Department } from "./department.entity";
 
 @Entity("categories")
 export class Category {
@@ -47,6 +49,9 @@ export class Category {
 
   @OneToMany(() => Product, (product) => product.category)
   products: Product[];
+
+  @ManyToMany(() => Department, (department) => department.categories)
+  departments: Department[];
 
   @CreateDateColumn()
   createdAt: Date;

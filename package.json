@@ -14,7 +14,9 @@
     "migration:generate": "npm run typeorm migration:generate -- -d src/config/typeorm.config.ts",
     "migration:run": "npm run typeorm migration:run -- -d src/config/typeorm.config.ts",
     "migration:revert": "npm run typeorm migration:revert -- -d src/config/typeorm.config.ts",
-    "seed:banners": "ts-node src/database/seed-banners.ts"
+    "seed:banners": "ts-node src/database/seed-banners.ts",
+    "seed:departments": "ts-node src/database/seed-departments.ts",
+    "seed:brands": "ts-node src/database/seed-brands-full.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.3.0",

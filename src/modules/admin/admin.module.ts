@@ -11,6 +11,7 @@ import { Inventory } from "../../database/entities/inventory.entity";
 import { Category } from "../../database/entities/category.entity";
 import { ProductOption } from "../../database/entities/product-option.entity";
 import { ProductOptionValue } from "../../database/entities/product-option-value.entity";
+import { Department } from "../../database/entities/department.entity";
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { ProductOptionValue } from "../../database/entities/product-option-value
       Category,
       ProductOption,
       ProductOptionValue,
+      Department,
     ]),
   ],
   controllers: [AdminController],

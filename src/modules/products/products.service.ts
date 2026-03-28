@@ -5,7 +5,7 @@ import {
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, Like, ILike, MoreThanOrEqual, LessThanOrEqual, In, DataSource } from "typeorm";
-import { Product, ProductVariant, Inventory, Category } from "../../database/entities";
+import { Product, ProductVariant, Inventory, Category, Brand } from "../../database/entities";
 import { ProductOption } from "../../database/entities/product-option.entity";
 import { ProductOptionValue } from "../../database/entities/product-option-value.entity";
 import { VariantOption } from "../../database/entities/variant-option.entity";
@@ -33,6 +33,8 @@ export class ProductsService {
     private inventoryRepository: Repository<Inventory>,
     @InjectRepository(Category)
     private categoryRepository: Repository<Category>,
+    @InjectRepository(Brand)
+    private brandRepository: Repository<Brand>,
     @InjectRepository(ProductOption)
     private productOptionRepository: Repository<ProductOption>,
     @InjectRepository(ProductOptionValue)
@@ -55,8 +57,10 @@ export class ProductsService {
 
     const sku = createProductDto.sku || generateSKU("PROD");
 
+    const { department, departments, ...restDto } = createProductDto;
+
     const product = this.productRepository.create({
-      ...createProductDto,
+      ...restDto,
       slug,
       sku,
       sellingPrice: createProductDto.sellingPrice || createProductDto.price,
@@ -238,6 +242,9 @@ export class ProductsService {
       category,
       categories,
       brand,
+      brandId,
+      department,
+      departments,
       minPrice,
       maxPrice,
       isFeatured,
@@ -270,6 +277,8 @@ export class ProductsService {
     const queryBuilder = this.productRepository
       .createQueryBuilder('product')
       .leftJoinAndSelect('product.category', 'category')
+      .leftJoinAndSelect('product.brandEntity', 'brandEntity')
+      .leftJoinAndSelect('product.departments', 'departments')
       .where('product.isActive = :isActive', { isActive: true });
 
     if (search) {
@@ -290,6 +299,19 @@ export class ProductsService {
 
     if (brand) {
       queryBuilder.andWhere('product.brand = :brand', { brand });
+    }
+
+    if (brandId) {
+      queryBuilder.andWhere('product.brandId = :brandId', { brandId });
+    }
+
+    if (department) {
+      queryBuilder.andWhere('departments.slug = :department', { department });
+    }
+
+    if (departments) {
+      const departmentList = departments.split(',').map((d) => d.trim());
+      queryBuilder.andWhere('departments.slug IN (:...departments)', { departments: departmentList });
     }
 
     if (minPrice) {
@@ -352,6 +374,8 @@ export class ProductsService {
     const totalQueryBuilder = this.productRepository
       .createQueryBuilder('product')
       .leftJoin('product.category', 'category')
+      .leftJoin('product.brandEntity', 'brandEntity')
+      .leftJoin('product.departments', 'departments')
       .where('product.isActive = :isActive', { isActive: true });
 
     if (search) {
@@ -372,6 +396,19 @@ export class ProductsService {
 
     if (brand) {
       totalQueryBuilder.andWhere('product.brand = :brand', { brand });
+    }
+
+    if (brandId) {
+      totalQueryBuilder.andWhere('product.brandId = :brandId', { brandId });
+    }
+
+    if (department) {
+      totalQueryBuilder.andWhere('departments.slug = :department', { department });
+    }
+
+    if (departments) {
+      const departmentList = departments.split(',').map((d) => d.trim());
+      totalQueryBuilder.andWhere('departments.slug IN (:...departments)', { departments: departmentList });
     }
 
     if (minPrice) {
@@ -442,7 +479,7 @@ export class ProductsService {
   async findOne(id: string): Promise<any> {
     const product = await this.productRepository.findOne({
       where: { id: +id },
-      relations: ["category", "variants", "inventories", "reviews", "options", "options.values"],
+      relations: ["category", "brandEntity", "departments", "variants", "inventories", "reviews", "options", "options.values"],
     });
 
     if (!product) {
@@ -463,6 +500,8 @@ export class ProductsService {
       where: { slug },
       relations: [
         "category",
+        "brandEntity",
+        "departments",
         "variants",
         "inventories",
         "reviews",
@@ -837,7 +876,7 @@ export class ProductsService {
   async getFeaturedProducts(limit = 10): Promise<Product[]> {
     return this.productRepository.find({
       where: { isFeatured: true, isActive: true },
-      relations: ["category", "inventories"],
+      relations: ["category", "brandEntity", "departments", "inventories"],
       take: limit,
       order: { createdAt: "DESC" },
     });
@@ -851,7 +890,7 @@ export class ProductsService {
         categoryId: product.categoryId,
         isActive: true,
       },
-      relations: ["category", "inventories"],
+      relations: ["category", "brandEntity", "departments", "inventories"],
       take: limit,
       order: { createdAt: "DESC" },
     });
@@ -871,6 +910,7 @@ export class ProductsService {
     const products = await this.productRepository
       .createQueryBuilder("product")
       .leftJoinAndSelect("product.category", "category")
+      .leftJoinAndSelect("product.brandEntity", "brandEntity")
       .where("(product.name LIKE :query OR product.description LIKE :query)", {
         query: `%${query}%`,
       })
@@ -887,6 +927,14 @@ export class ProductsService {
       .take(5)
       .getMany();
 
-    return { products, categories };
+    const brands = await this.brandRepository
+      .createQueryBuilder("brand")
+      .where("brand.name LIKE :query", { query: `%${query}%` })
+      .andWhere("brand.isActive = :isActive", { isActive: true })
+      .orderBy("brand.name", "ASC")
+      .take(5)
+      .getMany();
+
+    return { products, categories, brands };
   }
 }

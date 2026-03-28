@@ -36,12 +36,8 @@ export class CreateProductDto {
 
   @ApiProperty({ required: false })
   @IsOptional()
-  @IsString()
-  sku?: string;
-
-  @ApiProperty()
   @IsNumber()
-  price: number;
+  price?: number;
 
   @ApiProperty({ required: false })
   @IsOptional()
@@ -58,6 +54,21 @@ export class CreateProductDto {
   @IsString()
   brand?: string;
 
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsNumber()
+  brandId?: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  department?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  departments?: string;
+
   @ApiProperty({ default: 'unit' })
   @IsOptional()
   @IsString()
@@ -73,6 +84,11 @@ export class CreateProductDto {
   @IsArray()
   images?: string[];
 
+  @ApiProperty({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+
   @ApiProperty({ default: false })
   @IsOptional()
   @IsBoolean()
@@ -85,18 +101,33 @@ export class CreateProductDto {
 
   @ApiProperty({ required: false })
   @IsOptional()
+  @IsNumber()
+  returnDays?: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
   @IsString()
   expiresAt?: string;
 
   @ApiProperty({ required: false })
   @IsOptional()
-  @IsNumber()
-  stock?: number;
+  @IsString()
+  categoryId?: string;
 
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
-  categoryId?: string;
+  sku?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsBoolean()
+  hasVariants?: boolean;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsNumber()
+  stock?: number;
 }
 
 export class ProductOptionDto {
@@ -416,6 +447,21 @@ export class ProductQueryDto {
   @IsOptional()
   @IsString()
   brand?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsNumber()
+  brandId?: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  department?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  departments?: string;
 
   @ApiProperty({ required: false })
   @IsOptional()
