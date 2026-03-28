@@ -12,6 +12,7 @@ import { Category } from "../../database/entities/category.entity";
 import { ProductOption } from "../../database/entities/product-option.entity";
 import { ProductOptionValue } from "../../database/entities/product-option-value.entity";
 import { Department } from "../../database/entities/department.entity";
+import { Brand } from "../../database/entities";
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { Department } from "../../database/entities/department.entity";
       ProductOption,
       ProductOptionValue,
       Department,
+      Brand,
     ]),
   ],
   controllers: [AdminController],

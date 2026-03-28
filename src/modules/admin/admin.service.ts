@@ -11,6 +11,7 @@ import { Category } from "../../database/entities/category.entity";
 import { ProductOption } from "../../database/entities/product-option.entity";
 import { ProductOptionValue } from "../../database/entities/product-option-value.entity";
 import { Department } from "../../database/entities/department.entity";
+import { Brand } from "../../database/entities";
 
 @Injectable()
 export class AdminService {
@@ -35,6 +36,8 @@ export class AdminService {
     private productOptionValueRepository: Repository<ProductOptionValue>,
     @InjectRepository(Department)
     private departmentRepository: Repository<Department>,
+    @InjectRepository(Brand)
+    private brandRepository: Repository<Brand>,
     private dataSource: DataSource,
   ) {}
 
@@ -298,6 +301,15 @@ export class AdminService {
 
     const { departmentIds, ...restData } = productData;
 
+    if (restData.brandId && !restData.brand) {
+      const brand = await this.brandRepository.findOne({
+        where: { id: restData.brandId },
+      });
+      if (brand) {
+        restData.brand = brand.name;
+      }
+    }
+
     const product = this.productRepository.create(restData);
     const savedProduct = (await this.productRepository.save(product)) as unknown as Product;
 
@@ -321,6 +333,15 @@ export class AdminService {
     }
 
     const { options, departmentIds, ...restData } = productData;
+
+    if (restData.brandId && !restData.brand) {
+      const brand = await this.brandRepository.findOne({
+        where: { id: restData.brandId },
+      });
+      if (brand) {
+        restData.brand = brand.name;
+      }
+    }
 
     if (options !== undefined) {
       await this.updateProductOptions(productId, options);
