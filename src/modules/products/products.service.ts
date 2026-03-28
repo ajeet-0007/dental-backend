@@ -612,20 +612,21 @@ export class ProductsService {
     }
 
     const sku = createVariantDto.sku || generateSKU("VAR");
+    const price = Number(createVariantDto.price) || 0;
 
     const variant = this.productVariantRepository.create({
       productId: String(product.id),
       name: createVariantDto.name || '',
       sku,
-      price: createVariantDto.price,
-      sellingPrice: createVariantDto.sellingPrice || createVariantDto.price,
-      mrp: createVariantDto.mrp || createVariantDto.price,
-      weight: createVariantDto.weight || 0,
+      price,
+      sellingPrice: Number(createVariantDto.sellingPrice) || price,
+      mrp: Number(createVariantDto.mrp) || price,
+      weight: Number(createVariantDto.weight) || 0,
       weightUnit: createVariantDto.weightUnit || '',
       color: createVariantDto.color || '',
       size: createVariantDto.size || '',
       flavor: createVariantDto.flavor || '',
-      packQuantity: createVariantDto.packQuantity || 1,
+      packQuantity: Number(createVariantDto.packQuantity) || 1,
       isActive: createVariantDto.isActive ?? true,
       expiresAt: createVariantDto.expiresAt ? new Date(createVariantDto.expiresAt) : null,
     });
@@ -708,20 +709,21 @@ export class ProductsService {
 
       for (const dto of variantDtos) {
         const sku = dto.sku || generateSKU("VAR");
+        const price = Number(dto.price) || 0;
 
         const variant = queryRunner.manager.create(ProductVariant, {
           productId: String(product.id),
           name: dto.name || '',
           sku,
-          price: dto.price,
-          sellingPrice: dto.sellingPrice || dto.price,
-          mrp: dto.mrp || dto.price,
-          weight: dto.weight || 0,
+          price,
+          sellingPrice: Number(dto.sellingPrice) || price,
+          mrp: Number(dto.mrp) || price,
+          weight: Number(dto.weight) || 0,
           weightUnit: dto.weightUnit || '',
           color: dto.color || '',
           size: dto.size || '',
           flavor: dto.flavor || '',
-          packQuantity: dto.packQuantity || 1,
+          packQuantity: Number(dto.packQuantity) || 1,
           isActive: dto.isActive ?? true,
           expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
         });
@@ -837,7 +839,14 @@ export class ProductsService {
       updateVariantDto.expiresAt = undefined;
     }
 
-    Object.assign(variant, updateVariantDto);
+    const sanitizedDto: any = { ...updateVariantDto };
+    if (sanitizedDto.price !== undefined) sanitizedDto.price = Number(sanitizedDto.price) || 0;
+    if (sanitizedDto.sellingPrice !== undefined) sanitizedDto.sellingPrice = Number(sanitizedDto.sellingPrice) || 0;
+    if (sanitizedDto.mrp !== undefined) sanitizedDto.mrp = Number(sanitizedDto.mrp) || 0;
+    if (sanitizedDto.weight !== undefined) sanitizedDto.weight = Number(sanitizedDto.weight) || 0;
+    if (sanitizedDto.packQuantity !== undefined) sanitizedDto.packQuantity = Number(sanitizedDto.packQuantity) || 1;
+
+    Object.assign(variant, sanitizedDto);
     return this.productVariantRepository.save(variant);
   }
 
