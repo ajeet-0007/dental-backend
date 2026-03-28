@@ -16,6 +16,7 @@ import { AdminModule } from "./modules/admin/admin.module";
 import { ImageKitModule } from "./modules/imagekit/imagekit.module";
 import { HealthModule } from "./modules/health/health.module";
 import { WishlistModule } from "./modules/wishlist/wishlist.module";
+import { BannersModule } from "./modules/banners/banners.module";
 
 @Module({
   imports: [
@@ -62,6 +63,7 @@ import { WishlistModule } from "./modules/wishlist/wishlist.module";
     AdminModule,
     ImageKitModule,
     WishlistModule,
+    BannersModule,
   ],
 })
 export class AppModule {}
