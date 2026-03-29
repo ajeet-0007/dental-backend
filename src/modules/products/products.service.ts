@@ -298,7 +298,8 @@ export class ProductsService {
     }
 
     if (brand) {
-      queryBuilder.andWhere('product.brand = :brand', { brand });
+      const brandList = brand.split(',').map((b) => b.trim());
+      queryBuilder.andWhere('brandEntity.slug IN (:...brands)', { brands: brandList });
     }
 
     if (brandId) {
@@ -395,7 +396,8 @@ export class ProductsService {
     }
 
     if (brand) {
-      totalQueryBuilder.andWhere('product.brand = :brand', { brand });
+      const brandList = brand.split(',').map((b) => b.trim());
+      totalQueryBuilder.andWhere('brandEntity.slug IN (:...brands)', { brands: brandList });
     }
 
     if (brandId) {
