@@ -83,6 +83,24 @@ export class Product {
   @Column({ nullable: true })
   expiresAt: Date;
 
+  @Column({ type: "json", nullable: true })
+  features: string[];
+
+  @Column({ type: "json", nullable: true })
+  keySpecifications: Record<string, string>;
+
+  @Column({ nullable: true })
+  packaging: string;
+
+  @Column({ type: "text", nullable: true })
+  directionToUse: string;
+
+  @Column({ type: "text", nullable: true })
+  additionalInfo: string;
+
+  @Column({ nullable: true })
+  warranty: string;
+
   @Column({ nullable: true })
   categoryId: string;
 

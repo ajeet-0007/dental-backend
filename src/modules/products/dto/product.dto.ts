@@ -128,6 +128,36 @@ export class CreateProductDto {
   @IsOptional()
   @IsNumber()
   stock?: number;
+
+  @ApiProperty({ required: false, type: [String] })
+  @IsOptional()
+  @IsArray()
+  features?: string[];
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsObject()
+  keySpecifications?: Record<string, string>;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  packaging?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  directionToUse?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  additionalInfo?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  warranty?: string;
 }
 
 export class ProductOptionDto {
@@ -242,6 +272,36 @@ export class UpdateProductDto {
   @IsOptional()
   @IsArray()
   options?: ProductOptionDto[];
+
+  @ApiProperty({ required: false, type: [String] })
+  @IsOptional()
+  @IsArray()
+  features?: string[];
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsObject()
+  keySpecifications?: Record<string, string>;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  packaging?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  directionToUse?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  additionalInfo?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  warranty?: string;
 }
 
 export class CreateProductVariantDto {
@@ -676,6 +736,36 @@ export class CreateProductWithVariantsDto {
   @IsOptional()
   @IsArray()
   variants?: CreateVariantDto[];
+
+  @ApiProperty({ required: false, type: [String] })
+  @IsOptional()
+  @IsArray()
+  features?: string[];
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsObject()
+  keySpecifications?: Record<string, string>;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  packaging?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  directionToUse?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  additionalInfo?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  warranty?: string;
 }
 
 export class VariantWithAttributesDto {
@@ -797,4 +887,22 @@ export class ProductWithVariantsDto {
 
   @ApiProperty()
   updatedAt?: Date;
+
+  @ApiProperty({ required: false, type: [String] })
+  features?: string[];
+
+  @ApiProperty({ required: false })
+  keySpecifications?: Record<string, string>;
+
+  @ApiProperty({ required: false })
+  packaging?: string;
+
+  @ApiProperty({ required: false })
+  directionToUse?: string;
+
+  @ApiProperty({ required: false })
+  additionalInfo?: string;
+
+  @ApiProperty({ required: false })
+  warranty?: string;
 }
