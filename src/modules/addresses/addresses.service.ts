@@ -74,4 +74,16 @@ export class AddressesService {
       where: { userId, isDefault: true },
     });
   }
+
+  async setDefault(id: number, userId: string): Promise<Address> {
+    const address = await this.findOne(id, userId);
+
+    await this.addressRepository.update(
+      { userId, isDefault: true },
+      { isDefault: false },
+    );
+
+    address.isDefault = true;
+    return this.addressRepository.save(address);
+  }
 }

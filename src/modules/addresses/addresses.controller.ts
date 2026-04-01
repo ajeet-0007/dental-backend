@@ -63,4 +63,10 @@ export class AddressesController {
   async remove(@Request() req: any, @Param('id') id: string) {
     return this.addressesService.remove(+id, req.user.id);
   }
+
+  @Put(':id/default')
+  @ApiOperation({ summary: 'Set address as default' })
+  async setDefault(@Request() req: any, @Param('id') id: string) {
+    return this.addressesService.setDefault(+id, req.user.id);
+  }
 }
