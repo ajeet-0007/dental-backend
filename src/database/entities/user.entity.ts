@@ -49,6 +49,21 @@ export class User {
   @Exclude()
   refreshToken: string;
 
+  @Column({ nullable: true })
+  googleId: string;
+
+  @Column({ nullable: true })
+  facebookId: string;
+
+  @Column({ nullable: true })
+  appleId: string;
+
+  @Column({ nullable: true })
+  avatar: string;
+
+  @Column({ default: false })
+  isSocialLogin: boolean;
+
   @OneToMany(() => Address, (address) => address.user)
   addresses: Address[];
 

@@ -7,11 +7,14 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { User } from '../../database/entities';
 import { JwtStrategy } from '../../common/guards/jwt.strategy';
+import { GoogleStrategy } from './strategies/google.strategy';
+import { FacebookStrategy } from './strategies/facebook.strategy';
+import { AppleStrategy } from './strategies/apple.strategy';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User]),
-    PassportModule.register({ defaultStrategy: 'jwt' }),
+    PassportModule.register({ defaultStrategy: 'jwt', session: false }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
@@ -24,7 +27,13 @@ import { JwtStrategy } from '../../common/guards/jwt.strategy';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    GoogleStrategy,
+    FacebookStrategy,
+    AppleStrategy,
+  ],
   exports: [AuthService],
 })
 export class AuthModule {}

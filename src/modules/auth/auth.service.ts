@@ -11,6 +11,15 @@ import * as bcrypt from 'bcrypt';
 import { User, UserRole } from '../../database/entities';
 import { RegisterDto, LoginDto, RefreshTokenDto } from './dto/auth.dto';
 
+export interface SocialUserData {
+  provider: 'google' | 'facebook' | 'apple';
+  providerId: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  avatar?: string;
+}
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -154,5 +163,68 @@ export class AuthService {
   private sanitizeUser(user: User) {
     const { password, refreshToken, ...result } = user;
     return result;
+  }
+
+  async validateSocialUser(data: SocialUserData) {
+    const { provider, providerId, email, firstName, lastName, avatar } = data;
+
+    const providerField = `${provider}Id` as 'googleId' | 'facebookId' | 'appleId';
+
+    let user = await this.userRepository.findOne({
+      where: { [providerField]: providerId },
+    });
+
+    if (user) {
+      if (avatar && user.avatar !== avatar) {
+        user.avatar = avatar;
+        await this.userRepository.save(user);
+      }
+      const tokens = await this.generateTokens(user);
+      await this.updateRefreshToken(user.id, tokens.refreshToken);
+      return {
+        user: this.sanitizeUser(user),
+        ...tokens,
+      };
+    }
+
+    user = await this.userRepository.findOne({
+      where: { email },
+    });
+
+    if (user) {
+      user[providerField] = providerId;
+      if (avatar) user.avatar = avatar;
+      user.isSocialLogin = true;
+      await this.userRepository.save(user);
+      const tokens = await this.generateTokens(user);
+      await this.updateRefreshToken(user.id, tokens.refreshToken);
+      return {
+        user: this.sanitizeUser(user),
+        ...tokens,
+      };
+    }
+
+    const randomPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
+    const hashedPassword = await bcrypt.hash(randomPassword, 10);
+
+    user = this.userRepository.create({
+      email,
+      phone: `social_${Date.now()}`,
+      password: hashedPassword,
+      firstName: firstName || 'User',
+      lastName: lastName || '',
+      [providerField]: providerId,
+      avatar: avatar || '',
+      isSocialLogin: true,
+    });
+
+    await this.userRepository.save(user);
+    const tokens = await this.generateTokens(user);
+    await this.updateRefreshToken(user.id, tokens.refreshToken);
+
+    return {
+      user: this.sanitizeUser(user),
+      ...tokens,
+    };
   }
 }
