@@ -47,6 +47,37 @@ export class ProductsController {
     return this.productsService.getAllBrands();
   }
 
+  @Get('recommended')
+  @ApiOperation({ summary: 'Get recommended products based on categories' })
+  async getRecommended(
+    @Query('categories') categories: string,
+    @Query('exclude') exclude: string,
+    @Query('limit') limit = 8,
+  ) {
+    try {
+      const categorySlugs = categories ? categories.split(',').map((c) => c.trim()).filter(c => c) : [];
+      const excludeProductIds = exclude ? exclude.split(',').map((id) => parseInt(id.trim())).filter((id) => !isNaN(id)) : [];
+      return await this.productsService.getRecommendedByCategories(categorySlugs, excludeProductIds, +limit);
+    } catch (error) {
+      console.error('[getRecommended] Error:', error);
+      return [];
+    }
+  }
+
+  @Get('recommended-for-cart')
+  @ApiOperation({ summary: 'Get recommended products for cart page based on cart items' })
+  async getRecommendedForCart(
+    @Query('categories') categories: string,
+    @Query('brands') brands: string,
+    @Query('exclude') exclude: string,
+    @Query('limit') limit = 4,
+  ) {
+    const categorySlugs = categories ? categories.split(',').map((c) => c.trim()) : [];
+    const brandIds = brands ? brands.split(',').map((id) => parseInt(id.trim())).filter((id) => !isNaN(id)) : [];
+    const excludeProductIds = exclude ? exclude.split(',').map((id) => parseInt(id.trim())).filter((id) => !isNaN(id)) : [];
+    return this.productsService.getRecommendedForCart(categorySlugs, brandIds, excludeProductIds, +limit);
+  }
+
   @Get('search/:query')
   @ApiOperation({ summary: 'Global search products and categories' })
   async globalSearch(@Param('query') query: string) {

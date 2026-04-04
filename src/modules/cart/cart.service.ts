@@ -104,7 +104,7 @@ export class CartService {
   async getCart(userId: string): Promise<any[]> {
     const cartItems = await this.cartRepository.find({
       where: { userId },
-      relations: ["product", "product.category", "productVariant"],
+      relations: ["product", "product.category", "product.brandEntity", "productVariant"],
     });
 
     return cartItems.map((item) => ({
@@ -120,6 +120,8 @@ export class CartService {
         mrp: item.product.mrp,
         unit: item.product.unit,
         category: item.product.category,
+        brand: item.product.brand,
+        brandId: item.product.brandId,
       },
       variant: item.productVariant
         ? {

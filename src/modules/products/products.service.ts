@@ -948,4 +948,88 @@ export class ProductsService {
 
     return { products, categories, brands };
   }
+
+  async getRecommendedByCategories(categorySlugs: string[], excludeProductIds: number[], limit = 8) {
+    try {
+      console.log('[getRecommendedByCategories] Input:', { categorySlugs, excludeProductIds, limit });
+      
+      const queryBuilder = this.productRepository
+        .createQueryBuilder("product")
+        .leftJoinAndSelect("product.category", "category")
+        .leftJoinAndSelect("product.brandEntity", "brandEntity")
+        .where("product.isActive = :isActive", { isActive: true });
+
+      if (categorySlugs.length > 0) {
+        queryBuilder.andWhere("category.slug IN (:...categorySlugs)", { categorySlugs });
+      }
+
+      if (excludeProductIds.length > 0) {
+        queryBuilder.andWhere("product.id NOT IN (:...excludeProductIds)", { excludeProductIds });
+      }
+
+      queryBuilder
+        .orderBy("product.isFeatured", "DESC")
+        .addOrderBy("product.createdAt", "DESC")
+        .take(limit);
+
+      const products = await queryBuilder.getMany();
+      console.log('[getRecommendedByCategories] Products found:', products.length);
+
+      if (products.length === 0) {
+        return this.getFeaturedProducts(limit);
+      }
+
+      return products;
+    } catch (error) {
+      console.error('[getRecommendedByCategories] Error:', error);
+      return [];
+    }
+  }
+
+  async getRecommendedForCart(categorySlugs: string[], brandIds: number[], excludeProductIds: number[], limit = 8) {
+    try {
+      const queryBuilder = this.productRepository
+        .createQueryBuilder("product")
+        .leftJoinAndSelect("product.category", "category")
+        .leftJoinAndSelect("product.brandEntity", "brandEntity")
+        .where("product.isActive = :isActive", { isActive: true });
+
+      const conditions: string[] = [];
+      
+      if (categorySlugs.length > 0) {
+        conditions.push("category.slug IN (:...categorySlugs)");
+      }
+      
+      if (brandIds.length > 0) {
+        conditions.push("product.brandId IN (:...brandIds)");
+      }
+      
+      if (conditions.length > 0) {
+        queryBuilder.andWhere(`(${conditions.join(" OR ")})`, { 
+          categorySlugs,
+          brandIds 
+        });
+      }
+
+      if (excludeProductIds.length > 0) {
+        queryBuilder.andWhere("product.id NOT IN (:...excludeProductIds)", { excludeProductIds });
+      }
+
+      queryBuilder
+        .orderBy("product.isFeatured", "DESC")
+        .addOrderBy("product.createdAt", "DESC")
+        .take(limit);
+
+      let products = await queryBuilder.getMany();
+
+      if (products.length === 0) {
+        return this.getFeaturedProducts(limit);
+      }
+
+      return products;
+    } catch (error) {
+      console.error('[getRecommendedForCart] Error:', error);
+      return [];
+    }
+  }
 }
