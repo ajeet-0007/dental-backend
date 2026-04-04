@@ -136,8 +136,8 @@ export class CreateProductDto {
 
   @ApiProperty({ required: false })
   @IsOptional()
-  @IsObject()
-  keySpecifications?: Record<string, string>;
+  @IsString()
+  keySpecifications?: string;
 
   @ApiProperty({ required: false })
   @IsOptional()
@@ -280,8 +280,8 @@ export class UpdateProductDto {
 
   @ApiProperty({ required: false })
   @IsOptional()
-  @IsObject()
-  keySpecifications?: Record<string, string>;
+  @IsString()
+  keySpecifications?: string;
 
   @ApiProperty({ required: false })
   @IsOptional()
@@ -744,8 +744,8 @@ export class CreateProductWithVariantsDto {
 
   @ApiProperty({ required: false })
   @IsOptional()
-  @IsObject()
-  keySpecifications?: Record<string, string>;
+  @IsString()
+  keySpecifications?: string;
 
   @ApiProperty({ required: false })
   @IsOptional()
@@ -892,7 +892,9 @@ export class ProductWithVariantsDto {
   features?: string[];
 
   @ApiProperty({ required: false })
-  keySpecifications?: Record<string, string>;
+  @IsOptional()
+  @IsString()
+  keySpecifications?: string;
 
   @ApiProperty({ required: false })
   packaging?: string;

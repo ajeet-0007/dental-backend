@@ -86,8 +86,8 @@ export class Product {
   @Column({ type: "json", nullable: true })
   features: string[];
 
-  @Column({ type: "json", nullable: true })
-  keySpecifications: Record<string, string>;
+  @Column({ type: "text", nullable: true })
+  keySpecifications: string;
 
   @Column({ nullable: true })
   packaging: string;
