@@ -96,7 +96,9 @@ export class AuthController {
   @ApiOperation({ summary: 'Google OAuth callback' })
   googleAuthCallback(@Req() req: any, @Res() res: Response) {
     const { user, accessToken, refreshToken } = req.user;
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    let frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    // Remove trailing slash if present
+    frontendUrl = frontendUrl.replace(/\/$/, '');
     const tokenPayload = Buffer.from(JSON.stringify({ accessToken, refreshToken, user })).toString('base64');
     res.redirect(`${frontendUrl}/auth/callback?token=${tokenPayload}`);
   }
@@ -111,7 +113,8 @@ export class AuthController {
   @ApiOperation({ summary: 'Facebook OAuth callback' })
   facebookAuthCallback(@Req() req: any, @Res() res: Response) {
     const { user, accessToken, refreshToken } = req.user;
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    let frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    frontendUrl = frontendUrl.replace(/\/$/, '');
     const tokenPayload = Buffer.from(JSON.stringify({ accessToken, refreshToken, user })).toString('base64');
     res.redirect(`${frontendUrl}/auth/callback?token=${tokenPayload}`);
   }
@@ -126,7 +129,8 @@ export class AuthController {
   @ApiOperation({ summary: 'Apple OAuth callback' })
   appleAuthCallback(@Req() req: any, @Res() res: Response) {
     const { user, accessToken, refreshToken } = req.user;
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    let frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    frontendUrl = frontendUrl.replace(/\/$/, '');
     const tokenPayload = Buffer.from(JSON.stringify({ accessToken, refreshToken, user })).toString('base64');
     res.redirect(`${frontendUrl}/auth/callback?token=${tokenPayload}`);
   }
