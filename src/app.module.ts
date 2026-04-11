@@ -19,6 +19,7 @@ import { WishlistModule } from "./modules/wishlist/wishlist.module";
 import { BannersModule } from "./modules/banners/banners.module";
 import { DepartmentsModule } from "./modules/departments/departments.module";
 import { BrandsModule } from "./modules/brands/brands.module";
+import { ReviewsModule } from "./modules/reviews/reviews.module";
 
 @Module({
   imports: [
@@ -68,6 +69,7 @@ import { BrandsModule } from "./modules/brands/brands.module";
     BannersModule,
     DepartmentsModule,
     BrandsModule,
+    ReviewsModule,
   ],
 })
 export class AppModule {}

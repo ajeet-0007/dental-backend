@@ -168,6 +168,7 @@ export class OrdersService {
     const queryBuilder = this.orderRepository
       .createQueryBuilder("order")
       .leftJoinAndSelect("order.items", "items")
+      .leftJoinAndSelect("items.product", "product")
       .where("order.userId = :userId", { userId })
       .andWhere("order.status != :failedStatus", {
         failedStatus: OrderStatus.PAYMENT_FAILED,
@@ -193,6 +194,7 @@ export class OrdersService {
           order.items?.map((item) => ({
             id: item.id,
             productId: item.productId,
+            productSlug: item.product?.slug || null,
             productVariantId: item.productVariantId,
             productName: item.productName,
             productImage: item.productImage,
@@ -206,7 +208,7 @@ export class OrdersService {
     };
   }
 
-  async findOne(id: string): Promise<Order> {
+  async findOne(id: string): Promise<any> {
     const order = await this.orderRepository.findOne({
       where: { id },
       relations: [
@@ -223,20 +225,32 @@ export class OrdersService {
       throw new NotFoundException("Order not found");
     }
 
-    return order;
+    return {
+      ...order,
+      items: order.items?.map((item) => ({
+        ...item,
+        productSlug: item.product?.slug || null,
+      })) || [],
+    };
   }
 
-  async findByOrderNumber(orderNumber: string, userId: string): Promise<Order> {
+  async findByOrderNumber(orderNumber: string, userId: string): Promise<any> {
     const order = await this.orderRepository.findOne({
       where: { orderNumber, userId },
-      relations: ["items", "items.product", "payments", "shipments"],
+      relations: ["items", "items.product", "items.product.category", "payments", "shipments"],
     });
 
     if (!order) {
       throw new NotFoundException("Order not found");
     }
 
-    return order;
+    return {
+      ...order,
+      items: order.items?.map((item) => ({
+        ...item,
+        productSlug: item.product?.slug || null,
+      })) || [],
+    };
   }
 
   async updateStatus(

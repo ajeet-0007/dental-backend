@@ -5,10 +5,12 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   ManyToOne,
+  OneToMany,
   JoinColumn,
 } from 'typeorm';
 import { User } from './user.entity';
 import { Product } from './product.entity';
+import { Order } from './order.entity';
 
 @Entity('reviews')
 export class Review {
@@ -23,11 +25,18 @@ export class Review {
   user: User;
 
   @Column()
-  productId: string;
+  productId: number;
 
   @ManyToOne(() => Product, (product) => product.reviews)
   @JoinColumn({ name: 'productId' })
   product: Product;
+
+  @Column({ nullable: true })
+  orderId: string;
+
+  @ManyToOne(() => Order, { nullable: true })
+  @JoinColumn({ name: 'orderId' })
+  order: Order;
 
   @Column()
   rating: number;
@@ -38,11 +47,17 @@ export class Review {
   @Column({ type: 'text', nullable: true })
   comment: string;
 
+  @Column({ type: 'json', nullable: true })
+  images: string[];
+
   @Column({ default: false })
   isVerified: boolean;
 
   @Column({ default: true })
   isActive: boolean;
+
+  @Column({ default: 0 })
+  helpfulCount: number;
 
   @CreateDateColumn()
   createdAt: Date;
