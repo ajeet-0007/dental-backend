@@ -10,6 +10,8 @@ import {
   Product,
   ProductVariant,
   Inventory,
+  Order,
+  OrderStatus,
 } from "../../database/entities";
 import { AddToCartDto, UpdateCartItemDto } from "./dto/cart.dto";
 
@@ -24,6 +26,8 @@ export class CartService {
     private productVariantRepository: Repository<ProductVariant>,
     @InjectRepository(Inventory)
     private inventoryRepository: Repository<Inventory>,
+    @InjectRepository(Order)
+    private orderRepository: Repository<Order>,
   ) {}
 
   async addToCart(userId: string, addToCartDto: AddToCartDto): Promise<Cart> {
@@ -201,6 +205,121 @@ export class CartService {
     return {
       subtotal,
       items: cartItems.length,
+    };
+  }
+
+  async reorder(userId: string, orderId: string): Promise<{
+    success: boolean;
+    addedItems: any[];
+    failedItems: any[];
+    message: string;
+    cart: any[];
+  }> {
+    const order = await this.orderRepository.findOne({
+      where: { id: orderId, userId },
+      relations: ["items", "items.product"],
+    });
+
+    if (!order) {
+      throw new NotFoundException("Order not found");
+    }
+
+    const addedItems: any[] = [];
+    const failedItems: any[] = [];
+
+    for (const item of order.items) {
+      try {
+        const product = await this.productRepository.findOne({
+          where: { id: Number(item.productId) },
+        });
+
+        if (!product || !product.isActive) {
+          failedItems.push({
+            productId: item.productId,
+            name: item.productName,
+            reason: "Product is no longer available",
+          });
+          continue;
+        }
+
+        const inventory = await this.inventoryRepository.findOne({
+          where: { productId: String(item.productId) },
+        });
+
+        let maxQuantity = item.quantity;
+
+        if (inventory && inventory.trackInventory) {
+          const available = inventory.quantity - inventory.reservedQuantity;
+          if (available <= 0) {
+            failedItems.push({
+              productId: item.productId,
+              name: item.productName,
+              reason: "Out of stock",
+            });
+            continue;
+          }
+          maxQuantity = Math.min(item.quantity, available);
+        }
+
+        const existingCartItem = await this.cartRepository.findOne({
+          where: {
+            userId,
+            productId: String(item.productId),
+            productVariantId: item.productVariantId ? String(item.productVariantId) : undefined,
+          },
+        });
+
+        if (existingCartItem) {
+          const newQuantity = existingCartItem.quantity + maxQuantity;
+          if (inventory && inventory.trackInventory) {
+            const available = inventory.quantity - inventory.reservedQuantity;
+            existingCartItem.quantity = Math.min(newQuantity, available);
+          } else {
+            existingCartItem.quantity = newQuantity;
+          }
+          await this.cartRepository.save(existingCartItem);
+        } else {
+          const newCartItem = this.cartRepository.create({
+            userId,
+            productId: String(item.productId),
+            productVariantId: item.productVariantId ? String(item.productVariantId) : undefined,
+            quantity: maxQuantity,
+          });
+          await this.cartRepository.save(newCartItem);
+        }
+
+        addedItems.push({
+          productId: item.productId,
+          name: item.productName,
+          quantity: maxQuantity,
+          wasAdjusted: maxQuantity < item.quantity,
+        });
+      } catch (error) {
+        failedItems.push({
+          productId: item.productId,
+          name: item.productName,
+          reason: "Failed to add to cart",
+        });
+      }
+    }
+
+    const cart = await this.getCart(userId);
+
+    let message = "";
+    if (addedItems.length === order.items.length) {
+      message = `All ${addedItems.length} items added to your cart`;
+    } else if (addedItems.length > 0) {
+      message = `${addedItems.length} of ${order.items.length} items added to cart`;
+    } else {
+      message = "No items could be added to cart";
+    }
+
+    return {
+      success: addedItems.length > 0,
+      addedItems,
+      failedItems,
+      message,
+      cart,
     };
   }
 }

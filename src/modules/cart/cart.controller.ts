@@ -63,4 +63,13 @@ export class CartController {
   async clearCart(@Request() req: any) {
     return this.cartService.clearCart(req.user.id);
   }
+
+  @Post('reorder')
+  @ApiOperation({ summary: 'Reorder items from a previous order' })
+  async reorder(
+    @Request() req: any,
+    @Body() body: { orderId: string },
+  ) {
+    return this.cartService.reorder(req.user.id, body.orderId);
+  }
 }
