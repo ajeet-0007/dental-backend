@@ -107,9 +107,9 @@ export class AdminController {
   @Put("inventory/:productId")
   async updateInventory(
     @Param("productId") productId: string,
-    @Body("quantity") quantity: number,
+    @Body() body: { quantity: number; variantId?: string },
   ) {
-    return this.adminService.updateInventory(productId, quantity);
+    return this.adminService.updateInventory(productId, body.quantity, body.variantId);
   }
 
   @Get("payments")

@@ -313,6 +313,14 @@ export class AdminService {
     const product = this.productRepository.create(restData);
     const savedProduct = (await this.productRepository.save(product)) as unknown as Product;
 
+    if (!savedProduct.hasVariants) {
+      await this.inventoryRepository.save({
+        productId: savedProduct.id,
+        quantity: restData.stock || 0,
+        warehouseLocation: "default",
+      });
+    }
+
     if (departmentIds && departmentIds.length > 0) {
       const departments = await this.departmentRepository.findBy({
         id: In(departmentIds),
@@ -332,7 +340,7 @@ export class AdminService {
       throw new Error("Product not found");
     }
 
-    const { options, departmentIds, ...restData } = productData;
+    const { options, departmentIds, stock, ...restData } = productData;
 
     if (restData.brandId && !restData.brand) {
       const brand = await this.brandRepository.findOne({
@@ -361,6 +369,10 @@ export class AdminService {
         product.departments = [];
       }
       await this.productRepository.save(product);
+    }
+
+    if (stock !== undefined && stock !== null && !product.hasVariants) {
+      await this.updateInventory(String(productId), stock);
     }
 
     const updatedProduct = await this.productRepository.findOne({
@@ -434,8 +446,22 @@ export class AdminService {
       throw new Error("Product not found");
     }
 
-    await this.productRepository.remove(product);
-    return { success: true };
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      await queryRunner.manager.delete(Inventory, { productId: String(productId) });
+      await queryRunner.manager.remove(product);
+      
+      await queryRunner.commitTransaction();
+      return { success: true };
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   async getInventory(productId?: number, search?: string) {
@@ -445,7 +471,7 @@ export class AdminService {
       .orderBy("inventory.quantity", "ASC");
 
     if (productId) {
-      query.andWhere("inventory.productId = :productId", { productId });
+      query.andWhere("inventory.productId = :productId", { productId: String(productId) });
     }
 
     if (search && search.trim()) {
@@ -453,7 +479,7 @@ export class AdminService {
       const isNumeric = !isNaN(searchNum);
       
       if (isNumeric) {
-        query.andWhere("inventory.productId = :searchNum", { searchNum });
+        query.andWhere("inventory.productId = :searchNum", { searchNum: String(searchNum) });
       } else {
         query.andWhere(
           "(product.name LIKE :search OR product.sku LIKE :search)",
@@ -476,19 +502,41 @@ export class AdminService {
     };
   }
 
-  async updateInventory(productId: string, quantity: number) {
-    let inventory = await this.inventoryRepository.findOne({
-      where: { productId },
-    });
+  async updateInventory(productId: string, quantity: number, variantId?: string) {
+    const productIdNum = +productId;
+    let inventory;
 
-    if (!inventory) {
-      inventory = this.inventoryRepository.create({
-        productId,
-        quantity,
-        lowStockThreshold: 10,
+    if (variantId) {
+      inventory = await this.inventoryRepository.findOne({
+        where: { productId: productIdNum, productVariantId: variantId },
       });
+
+      if (!inventory) {
+        inventory = this.inventoryRepository.create({
+          productId: productIdNum,
+          productVariantId: variantId,
+          quantity,
+          lowStockThreshold: 10,
+          warehouseLocation: "default",
+        });
+      } else {
+        inventory.quantity = quantity;
+      }
     } else {
-      inventory.quantity = quantity;
+      inventory = await this.inventoryRepository.findOne({
+        where: { productId: productIdNum },
+      });
+
+      if (!inventory) {
+        inventory = this.inventoryRepository.create({
+          productId: productIdNum,
+          quantity,
+          lowStockThreshold: 10,
+          warehouseLocation: "default",
+        });
+      } else {
+        inventory.quantity = quantity;
+      }
     }
 
     await this.inventoryRepository.save(inventory);

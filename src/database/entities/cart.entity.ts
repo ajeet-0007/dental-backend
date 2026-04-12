@@ -26,7 +26,7 @@ export class Cart {
   user: User;
 
   @Column()
-  productId: string;
+  productId: number;
 
   @ManyToOne(() => Product, (product) => product.cartItems)
   @JoinColumn({ name: 'productId' })

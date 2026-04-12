@@ -73,6 +73,9 @@ export class OrdersService {
     const orderItems: Partial<OrderItem>[] = [];
 
     for (const cartItem of cartItems) {
+      if (!cartItem.product) {
+        continue;
+      }
       const product = cartItem.product;
       const variant = cartItem.productVariant;
 

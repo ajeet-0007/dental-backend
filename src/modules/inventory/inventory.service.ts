@@ -44,14 +44,14 @@ export class InventoryService {
 
   async findByProduct(productId: string): Promise<Inventory[]> {
     return this.inventoryRepository.find({
-      where: { productId },
+      where: { productId: +productId },
       order: { warehouseLocation: 'ASC' },
     });
   }
 
   async getAvailableQuantity(productId: string): Promise<number> {
     const inventory = await this.inventoryRepository.find({
-      where: { productId },
+      where: { productId: +productId },
     });
 
     return inventory.reduce((total, inv) => {
@@ -75,7 +75,7 @@ export class InventoryService {
 
   async reserveStock(productId: string, quantity: number): Promise<boolean> {
     const inventories = await this.inventoryRepository.find({
-      where: { productId },
+      where: { productId: +productId },
     });
 
     let remaining = quantity;
@@ -98,7 +98,7 @@ export class InventoryService {
 
   async releaseStock(productId: string, quantity: number): Promise<void> {
     const inventories = await this.inventoryRepository.find({
-      where: { productId },
+      where: { productId: +productId },
     });
 
     let remaining = quantity;
@@ -118,7 +118,7 @@ export class InventoryService {
 
   async deductStock(productId: string, quantity: number): Promise<void> {
     const inventories = await this.inventoryRepository.find({
-      where: { productId },
+      where: { productId: +productId },
     });
 
     let remaining = quantity;

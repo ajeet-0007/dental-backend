@@ -15,7 +15,7 @@ export class Inventory {
   id: string;
 
   @Column()
-  productId: string;
+  productId: number;
 
   @ManyToOne(() => Product, (product) => product.inventories)
   @JoinColumn({ name: 'productId' })

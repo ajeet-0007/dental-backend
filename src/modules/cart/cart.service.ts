@@ -32,9 +32,10 @@ export class CartService {
 
   async addToCart(userId: string, addToCartDto: AddToCartDto): Promise<Cart> {
     const { productId, productVariantId, quantity } = addToCartDto;
+    const productIdNum = +productId;
 
     const product = await this.productRepository.findOne({
-      where: { id: +productId },
+      where: { id: productIdNum },
     });
 
     if (!product) {
@@ -49,7 +50,7 @@ export class CartService {
 
     if (productVariantId) {
       const variant = await this.productVariantRepository.findOne({
-        where: { id: productVariantId, productId },
+        where: { id: productVariantId, productId: String(productIdNum) },
       });
 
       if (!variant) {
@@ -60,7 +61,7 @@ export class CartService {
     }
 
     const inventory = await this.inventoryRepository.findOne({
-      where: { productId, productVariantId: productVariantId || undefined },
+      where: { productId: productIdNum, productVariantId: productVariantId || undefined },
     });
 
     if (inventory && inventory.trackInventory) {
@@ -75,7 +76,7 @@ export class CartService {
     let cartItem = await this.cartRepository.findOne({
       where: {
         userId,
-        productId,
+        productId: productIdNum,
         productVariantId: productVariantId || undefined,
       },
     });
@@ -96,7 +97,7 @@ export class CartService {
     } else {
       cartItem = this.cartRepository.create({
         userId,
-        productId,
+        productId: productIdNum,
         productVariantId,
         quantity,
       });
@@ -111,7 +112,9 @@ export class CartService {
       relations: ["product", "product.category", "product.brandEntity", "productVariant"],
     });
 
-    return cartItems.map((item) => ({
+    return cartItems
+      .filter((item) => item.product !== null)
+      .map((item) => ({
       id: item.id,
       quantity: item.quantity,
       product: {
@@ -243,7 +246,7 @@ export class CartService {
         }
 
         const inventory = await this.inventoryRepository.findOne({
-          where: { productId: String(item.productId) },
+          where: { productId: Number(item.productId) },
         });
 
         let maxQuantity = item.quantity;
@@ -264,7 +267,7 @@ export class CartService {
         const existingCartItem = await this.cartRepository.findOne({
           where: {
             userId,
-            productId: String(item.productId),
+            productId: Number(item.productId),
             productVariantId: item.productVariantId ? String(item.productVariantId) : undefined,
           },
         });
@@ -281,7 +284,7 @@ export class CartService {
         } else {
           const newCartItem = this.cartRepository.create({
             userId,
-            productId: String(item.productId),
+            productId: Number(item.productId),
             productVariantId: item.productVariantId ? String(item.productVariantId) : undefined,
             quantity: maxQuantity,
           });

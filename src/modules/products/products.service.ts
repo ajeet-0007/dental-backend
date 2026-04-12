@@ -70,7 +70,7 @@ export class ProductsService {
     const savedProduct = await this.productRepository.save(product);
 
     await this.inventoryRepository.save({
-      productId: savedProduct.id.toString(),
+      productId: savedProduct.id,
       quantity: 0,
       warehouseLocation: "default",
     });
@@ -119,7 +119,7 @@ export class ProductsService {
       const savedProduct = await queryRunner.manager.save(Product, product);
 
       await queryRunner.manager.save(Inventory, {
-        productId: String(savedProduct.id),
+        productId: savedProduct.id,
         quantity: 0,
         warehouseLocation: "default",
       });
@@ -184,7 +184,7 @@ export class ProductsService {
           const savedVariant = await queryRunner.manager.save(ProductVariant, variant) as ProductVariant;
 
           await queryRunner.manager.save(Inventory, {
-            productId: String(savedProduct.id),
+            productId: savedProduct.id,
             productVariantId: savedVariant.id,
             quantity: 0,
             warehouseLocation: "default",
@@ -336,14 +336,19 @@ export class ProductsService {
     if (productIds.length > 0) {
       const productIdsAsStrings = productIds.map((id) => String(id));
 
+      console.log('Product IDs:', productIdsAsStrings);
+
       const [variants, inventories] = await Promise.all([
         this.productVariantRepository.find({
           where: { productId: In(productIdsAsStrings), isActive: true },
         }),
-        this.inventoryRepository.find({
-          where: { productId: In(productIdsAsStrings) },
-        }),
+        this.inventoryRepository
+          .createQueryBuilder("inventory")
+          .where("inventory.productId IN (:...productIds)", { productIds: productIdsAsStrings })
+          .getMany(),
       ]);
+
+      console.log('Found inventories:', inventories.length, inventories.map(i => i.productId));
 
       const variantsMap = new Map<string, ProductVariant[]>();
       variants.forEach((v) => {
@@ -355,9 +360,10 @@ export class ProductsService {
 
       const inventoriesMap = new Map<string, Inventory[]>();
       inventories.forEach((i) => {
-        const existing = inventoriesMap.get(i.productId) || [];
+        const key = String(i.productId);
+        const existing = inventoriesMap.get(key) || [];
         existing.push(i);
-        inventoriesMap.set(i.productId, existing);
+        inventoriesMap.set(key, existing);
       });
 
       products.forEach((p) => {
@@ -669,7 +675,7 @@ export class ProductsService {
     await this.productRepository.save(product);
 
     await this.inventoryRepository.save({
-      productId: String(product.id),
+      productId: product.id,
       productVariantId: savedVariant.id,
       quantity: 0,
       warehouseLocation: "default",
@@ -733,7 +739,7 @@ export class ProductsService {
         const savedVariant = await queryRunner.manager.save(ProductVariant, variant) as ProductVariant;
 
         await queryRunner.manager.save(Inventory, {
-          productId: String(product.id),
+          productId: product.id,
           productVariantId: savedVariant.id,
           quantity: 0,
           warehouseLocation: "default",
