@@ -978,12 +978,32 @@ export class ProductsService {
         .addOrderBy("product.createdAt", "DESC")
         .take(limit);
 
-      const products = await queryBuilder.getMany();
+      let products = await queryBuilder.getMany();
       console.log('[getRecommendedByCategories] Products found:', products.length);
 
       if (products.length === 0) {
-        return this.getFeaturedProducts(limit);
+        products = await this.getFeaturedProducts(limit);
       }
+
+      // Add inventories to each product
+      const productIds = products.map(p => String(p.id));
+      const inventories = await this.inventoryRepository
+        .createQueryBuilder("inventory")
+        .where("inventory.productId IN (:...productIds)", { productIds })
+        .getMany();
+
+      const inventoriesMap = new Map<string, Inventory[]>();
+      inventories.forEach((i) => {
+        const key = String(i.productId);
+        const existing = inventoriesMap.get(key) || [];
+        existing.push(i);
+        inventoriesMap.set(key, existing);
+      });
+
+      products = products.map(p => ({
+        ...p,
+        inventories: inventoriesMap.get(String(p.id)) || [],
+      }));
 
       return products;
     } catch (error) {
@@ -1029,8 +1049,28 @@ export class ProductsService {
       let products = await queryBuilder.getMany();
 
       if (products.length === 0) {
-        return this.getFeaturedProducts(limit);
+        products = await this.getFeaturedProducts(limit);
       }
+
+      // Add inventories to each product
+      const productIds = products.map(p => String(p.id));
+      const inventories = await this.inventoryRepository
+        .createQueryBuilder("inventory")
+        .where("inventory.productId IN (:...productIds)", { productIds })
+        .getMany();
+
+      const inventoriesMap = new Map<string, Inventory[]>();
+      inventories.forEach((i) => {
+        const key = String(i.productId);
+        const existing = inventoriesMap.get(key) || [];
+        existing.push(i);
+        inventoriesMap.set(key, existing);
+      });
+
+      products = products.map(p => ({
+        ...p,
+        inventories: inventoriesMap.get(String(p.id)) || [],
+      }));
 
       return products;
     } catch (error) {
