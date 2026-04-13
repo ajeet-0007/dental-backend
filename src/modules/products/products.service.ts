@@ -891,26 +891,147 @@ export class ProductsService {
   }
 
   async getFeaturedProducts(limit = 10): Promise<Product[]> {
-    return this.productRepository.find({
+    // First, get all featured products with their relations
+    const products = await this.productRepository.find({
       where: { isFeatured: true, isActive: true },
-      relations: ["category", "brandEntity", "departments", "inventories"],
+      relations: ["category", "brandEntity", "departments", "inventories", "variants"],
       take: limit,
       order: { createdAt: "DESC" },
     });
+
+    if (!products || products.length === 0) {
+      return products;
+    }
+
+    // For products WITH variants, we need to fetch variant inventory separately
+    const productsWithVariants = products.filter(
+      (p) => p.hasVariants && p.variants && p.variants.length > 0,
+    );
+
+    if (productsWithVariants.length > 0) {
+      // Get all variant IDs
+      const variantIds: string[] = [];
+      productsWithVariants.forEach((p) => {
+        p.variants.forEach((v) => {
+          variantIds.push(v.id);
+        });
+      });
+
+      // Fetch variant-level inventory
+      const variantInventories = await this.inventoryRepository.find({
+        where: { productVariantId: In(variantIds) },
+      });
+
+      // Create a map for quick lookup
+      const variantInventoryMap = new Map<string, Inventory[]>();
+      variantInventories.forEach((inv) => {
+        const list = variantInventoryMap.get(inv.productVariantId!) || [];
+        list.push(inv);
+        variantInventoryMap.set(inv.productVariantId!, list);
+      });
+
+      // Add variant inventory to each product
+      products.forEach((p) => {
+        if (p.hasVariants && p.variants && p.variants.length > 0) {
+          const varInv: Inventory[] = [];
+          p.variants.forEach((v) => {
+            const inv = variantInventoryMap.get(v.id);
+            if (inv) {
+              varInv.push(...inv);
+            }
+          });
+          // Add variant inventory to the product's inventory array
+          p.inventories = [...(p.inventories || []), ...varInv];
+        }
+      });
+    }
+
+    console.log('[DEBUG] getFeaturedProducts - Final inventory:');
+    products.forEach((p) => {
+      const totalStock = (p.inventories || []).reduce(
+        (sum: number, inv: any) => sum + (inv.quantity - inv.reservedQuantity),
+        0,
+      );
+      console.log(`  ${p.name}: hasVariants=${p.hasVariants}, variantCount=${p.variants?.length}, inventoryCount=${p.inventories?.length}, totalStock=${totalStock}`);
+      
+      // Debug specific products that might be showing out of stock
+      if (p.name && p.name.toLowerCase().includes('oro')) {
+        console.log(`  [DEBUG] ORO PRODUCT DETAILS:`, {
+          id: p.id,
+          name: p.name,
+          hasVariants: p.hasVariants,
+          variants: p.variants?.map(v => ({ id: v.id, name: v.name })),
+          inventories: p.inventories?.map(inv => ({
+            id: inv.id,
+            productId: inv.productId,
+            productVariantId: inv.productVariantId,
+            quantity: inv.quantity,
+            reservedQuantity: inv.reservedQuantity,
+            trackInventory: inv.trackInventory
+          }))
+        });
+      }
+    });
+
+    return products;
   }
 
   async getRelatedProducts(productId: string, limit = 10): Promise<Product[]> {
     const product = await this.findOne(productId);
 
-    return this.productRepository.find({
+    const products = await this.productRepository.find({
       where: {
         categoryId: product.categoryId,
         isActive: true,
       },
-      relations: ["category", "brandEntity", "departments", "inventories"],
+      relations: ["category", "brandEntity", "departments", "inventories", "variants"],
       take: limit,
       order: { createdAt: "DESC" },
     });
+
+    if (!products || products.length === 0) {
+      return products;
+    }
+
+    // Same fix for related products - add variant inventory
+    const productsWithVariants = products.filter(
+      (p) => p.hasVariants && p.variants && p.variants.length > 0,
+    );
+
+    if (productsWithVariants.length > 0) {
+      const variantIds: string[] = [];
+      productsWithVariants.forEach((p) => {
+        p.variants.forEach((v) => {
+          variantIds.push(v.id);
+        });
+      });
+
+      const variantInventories = await this.inventoryRepository.find({
+        where: { productVariantId: In(variantIds) },
+      });
+
+      const variantInventoryMap = new Map<string, Inventory[]>();
+      variantInventories.forEach((inv) => {
+        const list = variantInventoryMap.get(inv.productVariantId!) || [];
+        list.push(inv);
+        variantInventoryMap.set(inv.productVariantId!, list);
+      });
+
+      products.forEach((p) => {
+        if (p.hasVariants && p.variants && p.variants.length > 0) {
+          const varInv: Inventory[] = [];
+          p.variants.forEach((v) => {
+            const inv = variantInventoryMap.get(v.id);
+            if (inv) {
+              varInv.push(...inv);
+            }
+          });
+          p.inventories = [...(p.inventories || []), ...varInv];
+        }
+      });
+    }
+
+    return products;
   }
 
   async getAllBrands(): Promise<string[]> {
