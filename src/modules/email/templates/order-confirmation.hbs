@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body { font-family: Arial, sans-serif; color: #333; line-height: 1.6; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9; }
+    .header { background-color: #2c3e50; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
+    .content { background-color: white; padding: 20px; }
+    .order-details { margin: 20px 0; border: 1px solid #ddd; border-radius: 5px; padding: 15px; }
+    .items { margin: 15px 0; }
+    .item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
+    .item:last-child { border-bottom: none; }
+    .total { font-size: 18px; font-weight: bold; color: #2c3e50; padding: 15px 0; text-align: right; }
+    .footer { background-color: #f9f9f9; padding: 15px; text-align: center; font-size: 12px; color: #777; border-radius: 0 0 5px 5px; }
+    .button { display: inline-block; padding: 10px 20px; background-color: #3498db; color: white; text-decoration: none; border-radius: 5px; margin: 10px 0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Order Confirmation</h1>
+    </div>
+    <div class="content">
+      <p>Dear {{customerName}},</p>
+      <p>Thank you for your order! We've received your purchase and will process it shortly.</p>
+      
+      <div class="order-details">
+        <h3>Order Details</h3>
+        <p><strong>Order Number:</strong> #{{orderNumber}}</p>
+        <p><strong>Order ID:</strong> {{orderId}}</p>
+        <p><strong>Order Date:</strong> {{@root}}</p>
+        
+        <div class="items">
+          <h4>Items Ordered:</h4>
+          {{#each items}}
+            <div class="item">
+              <span>{{this.name}} (×{{this.quantity}})</span>
+              <span>₹{{this.price}}</span>
+            </div>
+          {{/each}}
+        </div>
+        
+        <div class="total">
+          <span>Total Amount:</span>
+          <span>₹{{totalAmount}}</span>
+        </div>
+      </div>
+      
+      <p><strong>What's Next?</strong></p>
+      <ul>
+        <li>We'll process your order and prepare it for shipment</li>
+        <li>You'll receive a shipping notification with tracking details within 24 hours</li>
+        <li>Expected delivery: 3-7 business days</li>
+      </ul>
+      
+      <p>You can track your order status anytime by logging into your account.</p>
+      
+      <p>If you have any questions, please don't hesitate to contact our support team.</p>
+      
+      <p>Best regards,<br><strong>DentalKart Team</strong></p>
+    </div>
+    <div class="footer">
+      <p>&copy; {{year}} DentalKart. All rights reserved.</p>
+      <p>This is an automated email. Please do not reply to this message.</p>
+    </div>
+  </div>
+</body>
+</html>

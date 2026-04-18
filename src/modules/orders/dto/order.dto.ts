@@ -47,6 +47,21 @@ export class CreateOrderDto {
   @IsOptional()
   @IsString()
   customerNote?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  selectedCourier?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  selectedService?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsNumber()
+  shippingRate?: number;
 }
 
 export class UpdateOrderStatusDto {

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body { font-family: Arial, sans-serif; color: #333; line-height: 1.6; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9; }
+    .header { background-color: #e74c3c; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
+    .content { background-color: white; padding: 20px; }
+    .alert-box { background-color: #fadbd8; padding: 15px; border-left: 4px solid #e74c3c; margin: 20px 0; border-radius: 3px; }
+    .details { margin: 15px 0; }
+    .detail-row { padding: 8px 0; }
+    .button { display: inline-block; padding: 12px 24px; background-color: #e74c3c; color: white; text-decoration: none; border-radius: 5px; margin: 15px 0; }
+    .footer { background-color: #f9f9f9; padding: 15px; text-align: center; font-size: 12px; color: #777; border-radius: 0 0 5px 5px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>⚠️ Delivery Attempt Failed</h1>
+    </div>
+    <div class="content">
+      <p>Hi {{customerName}},</p>
+      <p>We attempted to deliver your package, but we were unable to complete the delivery.</p>
+      
+      <div class="alert-box">
+        <h3>What Happened?</h3>
+        <p>{{courierName}} made a delivery attempt, but the package couldn't be left with anyone.</p>
+        <div class="details">
+          <div class="detail-row">
+            <strong>Tracking Number:</strong> {{trackingNumber}}
+          </div>
+          <div class="detail-row">
+            <strong>Order Number:</strong> #{{orderNumber}}
+          </div>
+          <div class="detail-row">
+            <strong>Location:</strong> {{location}}
+          </div>
+        </div>
+      </div>
+      
+      <p><strong>What You Need to Do:</strong></p>
+      <ul>
+        <li>Contact {{courierName}} to reschedule delivery</li>
+        <li>Arrange for someone to be present at the delivery address</li>
+        <li>Update delivery instructions if needed</li>
+      </ul>
+      
+      <p><a href="{{trackingUrl}}" class="button">Check Tracking & Reschedule</a></p>
+      
+      <p>If you need assistance, <a href="https://dentalkart.com/support">please contact our support team</a>. We're here to help!</p>
+      
+      <p>Thank you,<br><strong>DentalKart Team</strong></p>
+    </div>
+    <div class="footer">
+      <p>&copy; {{year}} DentalKart. All rights reserved.</p>
+    </div>
+  </div>
+</body>
+</html>

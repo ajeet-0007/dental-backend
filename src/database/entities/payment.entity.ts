@@ -56,7 +56,7 @@ export class Payment {
   @Column({ nullable: true })
   gatewayOrderId: string;
 
-  @Column({ nullable: true })
+  @Column({ type: "text", nullable: true })
   gatewayResponse: string;
 
   @Column({ nullable: true })

@@ -45,10 +45,14 @@ export class PaymentsController {
     @Req() req: RawBodyRequest<ExpressRequest>,
     @Headers("stripe-signature") signature: string,
   ) {
-    const payload = req.rawBody;
-    if (!payload) {
+    const payload = req.body;
+    if (!payload || !Buffer.isBuffer(payload)) {
+      console.error("Webhook error: No payload received");
+      console.error("Payload type:", typeof payload);
+      console.error("Payload:", payload);
       throw new Error("No payload received");
     }
+    console.log("Webhook received, payload size:", payload.length);
     return this.paymentsService.handleWebhook(payload, signature);
   }
 

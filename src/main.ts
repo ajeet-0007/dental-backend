@@ -1,12 +1,20 @@
 import { NestFactory } from "@nestjs/core";
 import { ValidationPipe } from "@nestjs/common";
 import { SwaggerModule, DocumentBuilder } from "@nestjs/swagger";
+import * as express from "express";
 import { AppModule } from "./app.module";
 
 async function bootstrap() {
   console.log("Starting Dentalkart Backend...");
 
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    rawBody: true,
+    bodyParser: false,
+  });
+
+  app.use("/api/payments/webhook", express.raw({ type: "application/json" }));
+
+  app.use(express.json());
 
   app.enableCors({
     origin: true,

@@ -66,7 +66,19 @@ export class OrdersService {
         throw new NotFoundException("Address not found");
       }
 
-      shippingAddress = `${address.name}, ${address.addressLine1}, ${address.addressLine2 || ""}, ${address.city}, ${address.state} - ${address.pincode}`;
+      // Store as JSON for consistent parsing
+      shippingAddress = JSON.stringify({
+        firstName: address.name,
+        lastName: '',
+        name: address.name,
+        addressLine1: address.addressLine1,
+        addressLine2: address.addressLine2,
+        city: address.city,
+        state: address.state,
+        pincode: address.pincode,
+        country: 'India',
+        phone: address.phone,
+      });
     }
 
     let subtotal = 0;
@@ -99,7 +111,7 @@ export class OrdersService {
       });
     }
 
-    const shippingAmount = subtotal > 500 ? 0 : 50;
+    const shippingAmount = createOrderDto.shippingRate || (subtotal > 500 ? 0 : 50);
     const taxAmount = Math.round(subtotal * 0.18 * 100) / 100;
     const totalAmount = subtotal + shippingAmount + taxAmount;
     const isCOD = createOrderDto.paymentMethod === "cod";
@@ -121,6 +133,9 @@ export class OrdersService {
         shippingAddress,
         customerNote: createOrderDto.customerNote,
         couponCode: createOrderDto.couponCode,
+        selectedCourier: createOrderDto.selectedCourier,
+        selectedService: createOrderDto.selectedService,
+        shippingRate: createOrderDto.shippingRate,
       });
 
       const savedOrder = await queryRunner.manager.save(order);

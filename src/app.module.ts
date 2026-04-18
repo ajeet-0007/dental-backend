@@ -20,6 +20,7 @@ import { BannersModule } from "./modules/banners/banners.module";
 import { DepartmentsModule } from "./modules/departments/departments.module";
 import { BrandsModule } from "./modules/brands/brands.module";
 import { ReviewsModule } from "./modules/reviews/reviews.module";
+import { EmailModule } from "./modules/email/email.module";
 
 @Module({
   imports: [
@@ -62,6 +63,7 @@ import { ReviewsModule } from "./modules/reviews/reviews.module";
     CartModule,
     OrdersModule,
     PaymentsModule,
+    EmailModule,
     ShippingModule,
     AdminModule,
     ImageKitModule,

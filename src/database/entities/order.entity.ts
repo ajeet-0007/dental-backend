@@ -82,6 +82,41 @@ export class Order {
   @Column({ nullable: true })
   adminNote: string;
 
+  // ShippingRocket Integration Fields
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  shippingRate: number;
+
+  @Column({ nullable: true })
+  selectedCourier: string;
+
+  @Column({ nullable: true })
+  selectedService: string;
+
+  @Column({ nullable: true })
+  shipmentId: string;
+
+  @Column({ nullable: true })
+  trackingNumber: string;
+
+  @Column({ nullable: true })
+  shippingStatus: string;
+
+  @Column({ nullable: true })
+  returnShipmentId: string;
+
+  @Column({ default: false })
+  isReturned: boolean;
+
+  @Column({ nullable: true })
+  returnInitiatedDate: Date;
+
+  // Inventory tracking
+  @Column({ default: false })
+  inventoryReserved: boolean;
+
+  @Column({ default: false })
+  inventoryDeducted: boolean;
+
   @OneToMany(() => OrderItem, (item) => item.order)
   items: OrderItem[];
 

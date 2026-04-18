@@ -17,6 +17,9 @@ import {
 } from "../../database/entities";
 import { CreatePaymentDto } from "./dto/payment.dto";
 import { InventoryService } from "../inventory/inventory.service";
+import { ShippingService } from "../shipping/shipping.service";
+import { errorLogger } from "../../common/utils/error-logger";
+import { CreateShipmentDto } from "../shipping/dto/create-shipment.dto";
 
 @Injectable()
 export class PaymentsService {
@@ -31,6 +34,7 @@ export class PaymentsService {
     private orderItemRepository: Repository<OrderItem>,
     private configService: ConfigService,
     private inventoryService: InventoryService,
+    private shippingService: ShippingService,
   ) {
     const secretKey = this.configService.get("STRIPE_SECRET_KEY");
     if (secretKey) {
@@ -120,20 +124,43 @@ export class PaymentsService {
 
     let event: Stripe.Event;
 
+    console.log(`handleWebhook - payload length: ${payload?.length}`);
+    console.log(`handleWebhook - signature: ${signature?.substring(0, 30)}...`);
+
     try {
       event = this.stripe.webhooks.constructEvent(
         payload,
         signature,
         webhookSecret,
       );
+      console.log(`handleWebhook - Event type: ${event.type}`);
     } catch (err) {
-      console.error("Webhook signature verification failed:", err);
+      console.error("=== WEBHOOK SIGNATURE VERIFICATION FAILED ===");
+      console.error("Error:", err);
+      console.error("Payload length:", payload?.length);
+      console.error("Payload string:", payload?.toString().substring(0, 100));
+      console.error("Signature header:", signature);
+      console.error("Webhook secret:", webhookSecret);
+
+      errorLogger.log(err, "Webhook Signature Verification Failed");
+
       throw new BadRequestException("Webhook signature verification failed");
     }
 
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
-      await this.processSuccessfulPayment(session);
+      console.log(`==> Received checkout.session.completed event <==`);
+      try {
+        await this.processSuccessfulPayment(session);
+      } catch (error) {
+        console.error(`Error in processSuccessfulPayment:`, error);
+        if (error instanceof Error) {
+          console.error(`Message: ${error.message}`);
+          console.error(`Stack: ${error.stack}`);
+          errorLogger.log(error, "processSuccessfulPayment");
+        }
+        throw error;
+      }
     }
   }
 
@@ -142,8 +169,12 @@ export class PaymentsService {
   ): Promise<void> {
     const orderId = session.metadata?.orderId;
 
+    console.log(`Processing checkout.session.completed for session: ${session.id}`);
+    console.log(`  - orderId from metadata: ${orderId}`);
+    console.log(`  - payment_intent: ${session.payment_intent}`);
+
     if (!orderId) {
-      console.log("No orderId in session metadata");
+      console.log("No orderId in session metadata - returning early");
       return;
     }
 
@@ -151,31 +182,169 @@ export class PaymentsService {
       where: { orderId },
     });
 
-    if (payment) {
-      payment.status = PaymentStatus.COMPLETED;
-      payment.transactionId = session.payment_intent as string;
-      payment.gatewayPaymentId = session.id;
-      payment.gatewayResponse = JSON.stringify(session);
-      await this.paymentRepository.save(payment);
+    console.log(`  - Payment record found: ${payment ? 'yes' : 'no'}`);
 
-      const order = await this.orderRepository.findOne({
-        where: { id: orderId },
-        relations: ["items"],
-      });
+    if (!payment) {
+      console.log(`No payment record for order ${orderId} - returning early`);
+      return;
+    }
 
-      if (order && order.status === OrderStatus.PENDING_PAYMENT) {
-        order.status = OrderStatus.CONFIRMED;
-        await this.orderRepository.save(order);
+    payment.status = PaymentStatus.COMPLETED;
+    payment.transactionId = (session.payment_intent as string) || "";
+    payment.gatewayPaymentId = session.id;
+    payment.gatewayResponse = JSON.stringify(session);
+    await this.paymentRepository.save(payment);
+    console.log(`  - Payment status updated to COMPLETED`);
 
-        for (const item of order.items) {
-          await this.inventoryService.reserveStock(
-            item.productId,
-            item.quantity,
-          );
+    const order = await this.orderRepository.findOne({
+      where: { id: orderId },
+      relations: ["items"],
+    });
+
+    console.log(`  - Order found: ${order ? 'yes' : 'no'}`);
+    if (order) {
+      console.log(`  - Order status: ${order.status}`);
+    }
+
+    if (order && order.status === OrderStatus.PENDING_PAYMENT) {
+      order.status = OrderStatus.CONFIRMED;
+      await this.orderRepository.save(order);
+      console.log(`  - Order status updated to CONFIRMED`);
+
+      for (const item of order.items) {
+        await this.inventoryService.reserveStock(
+          item.productId,
+          item.quantity,
+        );
+      }
+      console.log(`Order ${orderId} confirmed successfully`);
+
+      // Auto-create shipment after payment success
+      try {
+        console.log(`Calling createShipmentAfterPayment for order ${order.id}...`);
+        await this.createShipmentAfterPayment(order);
+        console.log(`Shipment creation completed for order ${order.id}`);
+      } catch (error) {
+        console.error(`Failed to create shipment for order ${orderId}:`, error);
+        if (error instanceof Error) {
+          console.error(`Error message: ${error.message}`);
+          console.error(`Error stack: ${error.stack}`);
+          errorLogger.log(error, "createShipmentAfterPayment");
         }
-        console.log(`Order ${orderId} confirmed successfully`);
+        // Don't throw - order is already confirmed, shipment can be created manually
+      }
+    } else {
+      console.log(`Order ${orderId} not pending payment or not found - skipping confirmation`);
+    }
+  }
+
+  private async createShipmentAfterPayment(order: Order): Promise<void> {
+    console.log(`Checking shipment for order ${order.id}:`);
+    console.log(`  - selectedCourier: ${order.selectedCourier}`);
+    console.log(`  - selectedService: ${order.selectedService}`);
+    console.log(`  - shippingAddress: ${order.shippingAddress?.substring(0, 100)}...`);
+
+    // Only create shipment if order has selectedCourier and selectedService
+    if (!order.selectedCourier || !order.selectedService) {
+      console.log(`Order ${order.id} missing courier/service - skipping auto-shipment`);
+      return;
+    }
+
+    // Check if shipment already exists for this order
+    const shipmentExists = await this.shippingService.shipmentExistsForOrder(order.id);
+    console.log(`  - shipmentExists: ${shipmentExists}`);
+    if (shipmentExists) {
+      console.log(`Shipment already exists for order ${order.id} - skipping duplicate creation`);
+      return;
+    }
+
+    // Parse shipping address to extract pincode
+    let deliveryPincode = '';
+    if (order.shippingAddress) {
+      try {
+        // Try JSON first (new format)
+        const addressObj = JSON.parse(order.shippingAddress);
+        deliveryPincode = addressObj.pincode || addressObj.zipCode || '';
+      } catch {
+        // Fallback: extract 6-digit PIN from plain text (Indian PIN codes)
+        const match = order.shippingAddress.match(/\b(\d{6})\b/);
+        if (match) {
+          deliveryPincode = match[1];
+          console.log(`Extracted pincode from plain text: ${deliveryPincode}`);
+        } else {
+          console.log(`Failed to parse shipping address for order ${order.id}`);
+        }
       }
     }
+
+    if (!deliveryPincode) {
+      console.log(`Order ${order.id} missing delivery pincode - cannot create shipment`);
+      return;
+    }
+
+    // Reload order with user relation to get customer details
+    const fullOrder = await this.orderRepository.findOne({
+      where: { id: order.id },
+      relations: ['user', 'items', 'items.product'],
+    });
+
+    if (!fullOrder || !fullOrder.user) {
+      console.log(`Order ${order.id} missing customer details - cannot create shipment`);
+      return;
+    }
+
+    // Calculate dimensions and weight from order items
+    // Default: dental products are typically lightweight and compact
+    let totalWeight = 0; // kg
+    let totalLength = 5; // cm - standard envelope base
+    let totalBreadth = 5; // cm
+    let totalHeight = 2; // cm - stack height
+
+    if (fullOrder.items && fullOrder.items.length > 0) {
+      // For dental products, estimate based on quantity
+      // Assume average product: 100g, 5x5cm footprint, 1cm height per item
+      totalWeight = (fullOrder.items.reduce((sum, item) => sum + item.quantity, 0) * 0.1); // 100g per item
+      totalHeight = 2 + (fullOrder.items.reduce((sum, item) => sum + item.quantity, 0) * 0.5); // 0.5cm per item
+
+      // Ensure reasonable minimums and maximums
+      totalWeight = Math.max(0.1, Math.min(30, totalWeight)); // 100g to 30kg
+      totalHeight = Math.max(2, Math.min(30, totalHeight)); // 2cm to 30cm
+    } else {
+      // Fallback: standard small package (100g, 5x5x2cm)
+      totalWeight = 0.1;
+    }
+
+    // Create shipment DTO
+    const createShipmentDto: CreateShipmentDto = {
+      orderId: order.id,
+      selectedCourier: order.selectedCourier,
+      selectedService: order.selectedService,
+      deliveryPincode,
+      weight: totalWeight,
+      length: totalLength,
+      breadth: totalBreadth,
+      height: totalHeight,
+      isCOD: false, // Card payment is not COD
+    };
+
+    console.log(`Shipment dimensions for order ${order.id}: weight=${totalWeight}kg, ${totalLength}x${totalBreadth}x${totalHeight}cm`);
+
+
+    // Create shipment
+    const shipment = await this.shippingService.createShippingRocketShipment(
+      createShipmentDto,
+    );
+
+    console.log(`Shipment created for order ${order.id}:`, shipment.id);
+
+    // Update order with shipment info
+    order.shipmentId = shipment.id;
+    order.trackingNumber = shipment.trackingNumber;
+    order.shippingStatus = shipment.status;
+    order.inventoryDeducted = true; // Mark inventory as deducted
+    await this.orderRepository.save(order);
+
+    console.log(`Order ${order.id} updated with shipment info`);
   }
 
   async verifyAndConfirmPayment(
@@ -239,8 +408,9 @@ export class PaymentsService {
       );
 
       if (session.payment_status === "paid") {
-        console.log("Payment is paid, processing...");
-        await this.processSuccessfulPayment(session);
+        console.log("Payment is paid, already processed by webhook");
+        // Don't process here - the webhook will handle it
+        // This prevents duplicate shipment creation from race conditions
         return { success: true, orderId: session.metadata?.orderId };
       }
 
