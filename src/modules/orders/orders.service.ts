@@ -249,7 +249,7 @@ export class OrdersService {
           height: height || 10,
         });
       } catch (error) {
-        this.logger.error('Failed to calculate shipping rates:', error.message);
+        this.logger.error('Failed to calculate shipping rates:', error);
         return null;
       }
 
@@ -288,7 +288,7 @@ export class OrdersService {
           })),
         });
       } catch (error) {
-        this.logger.error('Failed to create shipment:', error.message);
+        this.logger.error('Failed to create shipment:', error);
         return null;
       }
 
@@ -346,7 +346,7 @@ export class OrdersService {
     }
 
     return {
-      totalWeight: Math.max(totalWeight, 500),
+      totalWeight: Math.max(totalWeight / 1000, 0.5), // Convert g to kg, min 0.5kg
       length: maxLength || 10,
       breadth: maxBreadth || 10,
       height: maxHeight || 10,
