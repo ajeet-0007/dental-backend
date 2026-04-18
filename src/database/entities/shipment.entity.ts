@@ -50,30 +50,30 @@ export class Shipment {
   isCOD: boolean;
 
   // Pickup Details
-  @Column()
+  @Column({ nullable: true })
   pickupPincode: string;
 
   @Column({ nullable: true })
   pickupAddressId: string;
 
   // Delivery Details
-  @Column()
+  @Column({ nullable: true })
   deliveryPincode: string;
 
   @Column({ nullable: true })
   customerAddressId: string;
 
   // Package Info
-  @Column({ type: 'decimal', precision: 8, scale: 2 })
+  @Column({ type: 'decimal', precision: 8, scale: 2, nullable: true })
   weight: number;
 
-  @Column()
+  @Column({ nullable: true })
   length: number;
 
-  @Column()
+  @Column({ nullable: true })
   breadth: number;
 
-  @Column()
+  @Column({ nullable: true })
   height: number;
 
   // Tracking Info

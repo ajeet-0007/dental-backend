@@ -11,8 +11,10 @@ import {
   Inventory,
   Address,
   Payment,
+  Shipment,
 } from "../../database/entities";
 import { InventoryModule } from "../inventory/inventory.module";
+import { ShippingModule } from "../shipping/shipping.module";
 
 @Module({
   imports: [
@@ -25,8 +27,10 @@ import { InventoryModule } from "../inventory/inventory.module";
       Inventory,
       Address,
       Payment,
+      Shipment,
     ]),
     forwardRef(() => InventoryModule),
+    forwardRef(() => ShippingModule),
   ],
   controllers: [OrdersController],
   providers: [OrdersService],

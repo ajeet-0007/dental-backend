@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  Logger,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, DataSource } from "typeorm";
@@ -17,13 +18,20 @@ import {
   Payment,
   PaymentStatus,
   PaymentMethod,
+  Shipment,
+  ShipmentStatus,
 } from "../../database/entities";
 import { CreateOrderDto, UpdateOrderStatusDto } from "./dto/order.dto";
 import { generateOrderNumber } from "../../common/utils/slugify";
 import { InventoryService } from "../inventory/inventory.service";
+import { ShippingRocketService } from "../shipping/shipping-rocket.service";
+import { ConfigService } from "@nestjs/config";
 
 @Injectable()
 export class OrdersService {
+  private readonly logger = new Logger(OrdersService.name);
+  private warehousePincode: string;
+
   constructor(
     @InjectRepository(Order)
     private orderRepository: Repository<Order>,
@@ -41,9 +49,15 @@ export class OrdersService {
     private addressRepository: Repository<Address>,
     @InjectRepository(Payment)
     private paymentRepository: Repository<Payment>,
+    @InjectRepository(Shipment)
+    private shipmentRepository: Repository<Shipment>,
     private inventoryService: InventoryService,
+    private shippingRocketService: ShippingRocketService,
+    private configService: ConfigService,
     private dataSource: DataSource,
-  ) {}
+  ) {
+    this.warehousePincode = this.configService.get<string>('WAREHOUSE_PINCODE') || '243001';
+  }
 
   async create(userId: string, createOrderDto: CreateOrderDto): Promise<Order> {
     const cartItems = await this.cartRepository.find({
@@ -111,7 +125,7 @@ export class OrdersService {
       });
     }
 
-    const shippingAmount = createOrderDto.shippingRate || (subtotal > 500 ? 0 : 50);
+    const shippingAmount = createOrderDto.shippingRate || 0;
     const taxAmount = Math.round(subtotal * 0.18 * 100) / 100;
     const totalAmount = subtotal + shippingAmount + taxAmount;
     const isCOD = createOrderDto.paymentMethod === "cod";
@@ -169,6 +183,14 @@ export class OrdersService {
       await queryRunner.commitTransaction();
       await this.cartRepository.delete({ userId });
 
+      if (isCOD && shippingAddress) {
+        try {
+          await this.autoCreateShipment(savedOrder.id, orderItems, shippingAddress);
+        } catch (error) {
+          this.logger.error('Failed to create shipment automatically:', error);
+        }
+      }
+
       return this.findOne(savedOrder.id);
     } catch (error) {
       await queryRunner.rollbackTransaction();
@@ -176,6 +198,159 @@ export class OrdersService {
     } finally {
       await queryRunner.release();
     }
+  }
+
+  private async autoCreateShipment(
+    orderId: string,
+    orderItems: Partial<OrderItem>[],
+    shippingAddressJson: string,
+  ): Promise<Shipment | null> {
+    try {
+      let shippingAddress: any;
+      try {
+        shippingAddress = JSON.parse(shippingAddressJson);
+      } catch {
+        this.logger.error('Failed to parse shipping address JSON');
+        return null;
+      }
+
+      const deliveryPincode = shippingAddress?.pincode;
+      if (!deliveryPincode) {
+        this.logger.error('Delivery pincode not found in shipping address');
+        return null;
+      }
+
+      // Fetch order with items relation to get product details
+      const order = await this.orderRepository.findOne({
+        where: { id: orderId },
+        relations: ['items', 'items.product'],
+      });
+
+      if (!order || !order.items) {
+        this.logger.error('Order or items not found');
+        return null;
+      }
+
+      const orderItemsForShipment = order.items.map((item: any) => ({
+        product: item.product,
+        quantity: item.quantity,
+      }));
+
+      const { totalWeight, length, breadth, height } = this.calculatePackageDimensions(orderItemsForShipment);
+
+      let ratesResponse;
+      try {
+        ratesResponse = await this.shippingRocketService.calculateRates({
+          pickupPincode: this.warehousePincode,
+          deliveryPincode: deliveryPincode,
+          weight: totalWeight,
+          length: length || 10,
+          breadth: breadth || 10,
+          height: height || 10,
+        });
+      } catch (error) {
+        this.logger.error('Failed to calculate shipping rates:', error.message);
+        return null;
+      }
+
+      const couriers = ratesResponse?.couriers || [];
+      if (couriers.length === 0) {
+        this.logger.error('No couriers available for shipping');
+        return null;
+      }
+
+      couriers.sort((a: any, b: any) => a.rate - b.rate);
+      const cheapestCourier = couriers[0];
+
+      const shipmentDto = {
+        isCOD: order.status === OrderStatus.CONFIRMED,
+        deliveryPincode,
+        selectedService: cheapestCourier.serviceType,
+        selectedCourier: cheapestCourier.name,
+        weight: totalWeight,
+        length: length || 10,
+        breadth: breadth || 10,
+        height: height || 10,
+      };
+
+      let shipmentData;
+      try {
+        shipmentData = await this.shippingRocketService.createShipment(shipmentDto, {
+          id: order.id,
+          orderNumber: order.orderNumber,
+          userId: order.userId,
+          shippingAddress: shippingAddressJson,
+          items: order.items.map((item: any) => ({
+            productName: item.productName,
+            sku: item.sku,
+            quantity: item.quantity,
+            sellingPrice: item.sellingPrice,
+          })),
+        });
+      } catch (error) {
+        this.logger.error('Failed to create shipment:', error.message);
+        return null;
+      }
+
+      const shipment = this.shipmentRepository.create({
+        orderId: order.id,
+        shippingRocketId: shipmentData.shippingRocketId,
+        trackingNumber: shipmentData.trackingNumber,
+        awbNumber: shipmentData.awbNumber,
+        courierName: shipmentData.courierName,
+        status: ShipmentStatus.PENDING,
+        pickupPincode: this.warehousePincode,
+        deliveryPincode: deliveryPincode,
+        weight: totalWeight,
+        length: length || 10,
+        breadth: breadth || 10,
+        height: height || 10,
+      });
+
+      order.selectedCourier = cheapestCourier.name;
+      order.selectedService = cheapestCourier.serviceType;
+      order.shippingRate = cheapestCourier.rate;
+      order.shippingAmount = cheapestCourier.rate;
+      await this.orderRepository.save(order);
+
+      return this.shipmentRepository.save(shipment);
+    } catch (error) {
+      this.logger.error('Error in autoCreateShipment:', error);
+      return null;
+    }
+  }
+
+  private calculatePackageDimensions(orderItems: any[]): {
+    totalWeight: number;
+    length: number;
+    breadth: number;
+    height: number;
+  } {
+    let totalWeight = 0;
+    let maxLength = 0;
+    let maxBreadth = 0;
+    let maxHeight = 0;
+
+    for (const item of orderItems) {
+      const product = item.product || {};
+      const itemWeight = product.weight || 500;
+      const itemLength = product.length || 10;
+      const itemBreadth = product.breadth || 10;
+      const itemHeight = product.height || 10;
+      const quantity = item.quantity || 1;
+
+      totalWeight += itemWeight * quantity;
+      maxLength = Math.max(maxLength, itemLength);
+      maxBreadth = Math.max(maxBreadth, itemBreadth);
+      maxHeight = Math.max(maxHeight, itemHeight);
+    }
+
+    return {
+      totalWeight: Math.max(totalWeight, 500),
+      length: maxLength || 10,
+      breadth: maxBreadth || 10,
+      height: maxHeight || 10,
+    };
   }
 
   async findAll(

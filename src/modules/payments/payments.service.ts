@@ -18,6 +18,7 @@ import {
 import { CreatePaymentDto } from "./dto/payment.dto";
 import { InventoryService } from "../inventory/inventory.service";
 import { ShippingService } from "../shipping/shipping.service";
+import { ShippingRocketService } from "../shipping/shipping-rocket.service";
 import { errorLogger } from "../../common/utils/error-logger";
 import { CreateShipmentDto } from "../shipping/dto/create-shipment.dto";
 
@@ -35,6 +36,7 @@ export class PaymentsService {
     private configService: ConfigService,
     private inventoryService: InventoryService,
     private shippingService: ShippingService,
+    private shippingRocketService: ShippingRocketService,
   ) {
     const secretKey = this.configService.get("STRIPE_SECRET_KEY");
     if (secretKey) {
@@ -244,17 +246,17 @@ export class PaymentsService {
     console.log(`  - selectedService: ${order.selectedService}`);
     console.log(`  - shippingAddress: ${order.shippingAddress?.substring(0, 100)}...`);
 
-    // Only create shipment if order has selectedCourier and selectedService
-    if (!order.selectedCourier || !order.selectedService) {
-      console.log(`Order ${order.id} missing courier/service - skipping auto-shipment`);
-      return;
-    }
-
     // Check if shipment already exists for this order
     const shipmentExists = await this.shippingService.shipmentExistsForOrder(order.id);
     console.log(`  - shipmentExists: ${shipmentExists}`);
     if (shipmentExists) {
       console.log(`Shipment already exists for order ${order.id} - skipping duplicate creation`);
+      return;
+    }
+
+    // If already has courier/service, shipment was created during order creation (COD case)
+    if (order.selectedCourier && order.selectedService) {
+      console.log(`Order ${order.id} already has courier/service - skipping duplicate creation`);
       return;
     }
 
@@ -294,31 +296,67 @@ export class PaymentsService {
     }
 
     // Calculate dimensions and weight from order items
-    // Default: dental products are typically lightweight and compact
-    let totalWeight = 0; // kg
-    let totalLength = 5; // cm - standard envelope base
-    let totalBreadth = 5; // cm
-    let totalHeight = 2; // cm - stack height
+    const warehousePincode = this.configService.get('WAREHOUSE_PINCODE') || '243001';
+    let totalWeight = 0;
+    let totalLength = 10;
+    let totalBreadth = 10;
+    let totalHeight = 10;
 
     if (fullOrder.items && fullOrder.items.length > 0) {
-      // For dental products, estimate based on quantity
-      // Assume average product: 100g, 5x5cm footprint, 1cm height per item
-      totalWeight = (fullOrder.items.reduce((sum, item) => sum + item.quantity, 0) * 0.1); // 100g per item
-      totalHeight = 2 + (fullOrder.items.reduce((sum, item) => sum + item.quantity, 0) * 0.5); // 0.5cm per item
-
-      // Ensure reasonable minimums and maximums
-      totalWeight = Math.max(0.1, Math.min(30, totalWeight)); // 100g to 30kg
-      totalHeight = Math.max(2, Math.min(30, totalHeight)); // 2cm to 30cm
+      // Get weight from products if available, otherwise estimate
+      for (const item of fullOrder.items) {
+        const itemWeight = (item as any)?.product?.weight || 500;
+        totalWeight += itemWeight * item.quantity;
+        const itemLength = (item as any)?.product?.length || 10;
+        const itemBreadth = (item as any)?.product?.breadth || 10;
+        const itemHeight = (item as any)?.product?.height || 10;
+        totalLength = Math.max(totalLength, itemLength);
+        totalBreadth = Math.max(totalBreadth, itemBreadth);
+        totalHeight = Math.max(totalHeight, itemHeight);
+      }
+      totalWeight = totalWeight / 1000; // Convert g to kg
     } else {
-      // Fallback: standard small package (100g, 5x5x2cm)
-      totalWeight = 0.1;
+      totalWeight = 0.5; // Default 500g
+    }
+
+    totalWeight = Math.max(totalWeight, 0.5); // Minimum 500g
+
+    // Calculate shipping rates and pick cheapest
+    let ratesResponse: { couriers: any[] } | null = null;
+    try {
+      ratesResponse = await this.shippingRocketService.calculateRates({
+        pickupPincode: warehousePincode,
+        deliveryPincode,
+        weight: totalWeight,
+        length: totalLength,
+        breadth: totalBreadth,
+        height: totalHeight,
+      });
+    } catch (error) {
+      console.log(`Failed to calculate rates for order ${order.id}:`, error.message);
+    }
+
+    let selectedCourier = 'Standard';
+    let selectedService = 'Standard';
+    let shippingRate = 50;
+
+    if (ratesResponse && ratesResponse.couriers && ratesResponse.couriers.length > 0) {
+      const couriers = ratesResponse.couriers;
+      couriers.sort((a: any, b: any) => a.rate - b.rate);
+      const cheapest = couriers[0];
+      selectedCourier = cheapest.name;
+      selectedService = cheapest.serviceType;
+      shippingRate = cheapest.rate;
+      console.log(`Selected cheapest courier for order ${order.id}: ${selectedCourier} (${selectedService}) - ₹${shippingRate}`);
+    } else {
+      console.log(`Using default shipping rate for order ${order.id}: ₹${shippingRate}`);
     }
 
     // Create shipment DTO
     const createShipmentDto: CreateShipmentDto = {
       orderId: order.id,
-      selectedCourier: order.selectedCourier,
-      selectedService: order.selectedService,
+      selectedCourier,
+      selectedService,
       deliveryPincode,
       weight: totalWeight,
       length: totalLength,
@@ -329,22 +367,36 @@ export class PaymentsService {
 
     console.log(`Shipment dimensions for order ${order.id}: weight=${totalWeight}kg, ${totalLength}x${totalBreadth}x${totalHeight}cm`);
 
-
     // Create shipment
-    const shipment = await this.shippingService.createShippingRocketShipment(
-      createShipmentDto,
-    );
+    try {
+      const shipment = await this.shippingService.createShippingRocketShipment(
+        createShipmentDto,
+      );
 
-    console.log(`Shipment created for order ${order.id}:`, shipment.id);
+      console.log(`Shipment created for order ${order.id}:`, shipment.id);
 
-    // Update order with shipment info
-    order.shipmentId = shipment.id;
-    order.trackingNumber = shipment.trackingNumber;
-    order.shippingStatus = shipment.status;
-    order.inventoryDeducted = true; // Mark inventory as deducted
-    await this.orderRepository.save(order);
+      // Update order with shipment info
+      order.selectedCourier = selectedCourier;
+      order.selectedService = selectedService;
+      order.shippingRate = shippingRate;
+      order.shippingAmount = shippingRate;
+      order.shipmentId = shipment.id;
+      order.trackingNumber = shipment.trackingNumber;
+      order.shippingStatus = shipment.status;
+      order.inventoryDeducted = true;
+      await this.orderRepository.save(order);
 
-    console.log(`Order ${order.id} updated with shipment info`);
+      console.log(`Order ${order.id} updated with shipment info`);
+    } catch (error) {
+      console.log(`Failed to create shipment for order ${order.id}:`, error.message);
+      // Update order with rate but create shipment record failed - will be created manually
+      order.selectedCourier = selectedCourier;
+      order.selectedService = selectedService;
+      order.shippingRate = shippingRate;
+      order.shippingAmount = shippingRate;
+      await this.orderRepository.save(order);
+      console.log(`Order ${order.id} updated with rate info - shipment can be created manually`);
+    }
   }
 
   async verifyAndConfirmPayment(

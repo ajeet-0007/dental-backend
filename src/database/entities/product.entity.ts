@@ -101,6 +101,24 @@ export class Product {
   @Column({ nullable: true })
   warranty: string;
 
+  @Column({ default: 0 })
+  weight: number;
+
+  @Column({ default: 'g' })
+  weightUnit: string;
+
+  @Column({ default: 0 })
+  length: number;
+
+  @Column({ default: 0 })
+  breadth: number;
+
+  @Column({ default: 0 })
+  height: number;
+
+  @Column({ default: 'cm' })
+  dimensionUnit: string;
+
   @Column({ nullable: true })
   categoryId: string;
 
