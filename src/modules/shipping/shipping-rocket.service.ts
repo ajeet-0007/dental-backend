@@ -449,6 +449,7 @@ export class ShippingRocketService implements OnModuleInit {
       return {
         shippingRocketId: shipmentData.shipment_id?.toString() || '',
         orderId: shipmentData.order_id?.toString() || order.id,
+        srOrderId: shipmentData.order_id?.toString() || '',
         trackingNumber: shipmentData.tracking_number || '',
         awbNumber: shipmentData.awb_number || '',
         labelUrl: shipmentData.label_url || '',
@@ -491,10 +492,10 @@ export class ShippingRocketService implements OnModuleInit {
     }
   }
 
-  /**
-   * Generate labels in bulk
-   */
-  async generateBulkLabels(shipmentIds: string[]) {
+/**
+    * Generate labels in bulk
+    */
+  async generateBulkLabels(shipmentIds: number[]) {
     try {
       await this.ensureValidToken();
 
@@ -520,21 +521,18 @@ export class ShippingRocketService implements OnModuleInit {
     }
   }
 
-  /**
+/**
    * Cancel shipment before pickup
    */
-  async cancelShipment(shippingRocketId: string) {
+  async cancelShipment(orderId: string) {
     try {
       await this.ensureValidToken();
 
-      const response = await this.axiosInstance.post(`/shipments/${shippingRocketId}/cancel`);
+      console.log('[ShipRocket] Cancelling with orderId:', orderId);
 
-      if (response.data.status !== 'success') {
-        throw new HttpException(
-          response.data.message || 'Failed to cancel shipment',
-          HttpStatus.BAD_REQUEST,
-        );
-      }
+      const response = await this.axiosInstance.post('/orders/cancel', {
+        ids: [orderId],
+      });
 
       return { success: true, message: 'Shipment cancelled successfully' };
     } catch (error) {
@@ -546,10 +544,10 @@ export class ShippingRocketService implements OnModuleInit {
     }
   }
 
-  /**
-   * Schedule pickup for shipments
-   */
-  async schedulePickup(shipmentIds: string[], pickupDate: Date) {
+/**
+    * Schedule pickup for shipments
+    */
+  async schedulePickup(shipmentIds: number[], pickupDate: Date) {
     try {
       await this.ensureValidToken();
 
@@ -862,6 +860,94 @@ export class ShippingRocketService implements OnModuleInit {
   /**
    * Get available courier companies
    */
+  async generateManifest(shippingRocketId: string): Promise<any> {
+    try {
+      await this.ensureValidToken();
+
+      const response = await this.axiosInstance.get(`/shipments/manifest/${shippingRocketId}`, {
+        responseType: 'arraybuffer',
+      });
+
+      return response.data;
+    } catch (error) {
+      this.logger.error('Error generating manifest:', error);
+      throw new HttpException(
+        'Failed to generate manifest',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  async generateBulkManifests(shipmentIds: number[]): Promise<any> {
+    try {
+      await this.ensureValidToken();
+
+      const payload = {
+        shipment_ids: shipmentIds,
+      };
+
+      const response = await this.axiosInstance.post(
+        '/shipments/manifests/bulk-generate',
+        payload,
+        {
+          responseType: 'arraybuffer',
+        },
+      );
+
+      return response.data;
+    } catch (error) {
+      this.logger.error('Error generating bulk manifests:', error);
+      throw new HttpException(
+        'Failed to generate bulk manifests',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  async generateInvoice(shippingRocketId: string): Promise<any> {
+    try {
+      await this.ensureValidToken();
+
+      const response = await this.axiosInstance.get(`/shipments/invoice/${shippingRocketId}`, {
+        responseType: 'arraybuffer',
+      });
+
+      return response.data;
+    } catch (error) {
+      this.logger.error('Error generating invoice:', error);
+      throw new HttpException(
+        'Failed to generate invoice',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  async generateBulkInvoices(shipmentIds: number[]): Promise<any> {
+    try {
+      await this.ensureValidToken();
+
+      const payload = {
+        shipment_ids: shipmentIds,
+      };
+
+      const response = await this.axiosInstance.post(
+        '/shipments/invoices/bulk-generate',
+        payload,
+        {
+          responseType: 'arraybuffer',
+        },
+      );
+
+      return response.data;
+    } catch (error) {
+      this.logger.error('Error generating bulk invoices:', error);
+      throw new HttpException(
+        'Failed to generate bulk invoices',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
   async getCourierCompanies(): Promise<any> {
     try {
       await this.ensureValidToken();

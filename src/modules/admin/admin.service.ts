@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, NotFoundException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, DataSource, In } from "typeorm";
 import { Order, OrderStatus } from "../../database/entities/order.entity";
@@ -11,7 +11,8 @@ import { Category } from "../../database/entities/category.entity";
 import { ProductOption } from "../../database/entities/product-option.entity";
 import { ProductOptionValue } from "../../database/entities/product-option-value.entity";
 import { Department } from "../../database/entities/department.entity";
-import { Brand } from "../../database/entities";
+import { Brand, Shipment, ShipmentStatus } from "../../database/entities";
+import { ShippingRocketService } from "../shipping/shipping-rocket.service";
 
 @Injectable()
 export class AdminService {
@@ -38,6 +39,9 @@ export class AdminService {
     private departmentRepository: Repository<Department>,
     @InjectRepository(Brand)
     private brandRepository: Repository<Brand>,
+    @InjectRepository(Shipment)
+    private shipmentRepository: Repository<Shipment>,
+    private shippingRocketService: ShippingRocketService,
     private dataSource: DataSource,
   ) {}
 
@@ -612,5 +616,37 @@ export class AdminService {
       totalPages: Math.ceil(total / limit),
       totalAmount: parseFloat(totalAmount?.total || "0"),
     };
+  }
+
+  async cancelOrderShipment(orderId: string): Promise<any> {
+    const order = await this.orderRepository.findOne({
+      where: { id: orderId },
+      relations: ['shipments'],
+    });
+
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    const shipment = order.shipments?.[0];
+    if (!shipment) {
+      throw new NotFoundException('No shipment found for this order');
+    }
+
+    // Get ShipRocket's order ID from shipment record
+    const shiprocketOrderId = (shipment as any).srOrderId || shipment.shippingRocketId;
+    
+    // Pass ShipRocket order ID to cancel
+    const cancelResult = await this.shippingRocketService.cancelShipment(shiprocketOrderId);
+
+    // Update shipment status
+    shipment.status = ShipmentStatus.CANCELLED;
+    await this.shipmentRepository.save(shipment);
+
+    // Update order status
+    order.status = OrderStatus.CANCELLED;
+    await this.orderRepository.save(order);
+
+    return { success: true, message: 'Shipment cancelled successfully' };
   }
 }

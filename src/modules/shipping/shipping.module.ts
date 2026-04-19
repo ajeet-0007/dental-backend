@@ -6,18 +6,20 @@ import { ShippingWebhookController } from './shipping-webhook.controller';
 import { ShippingRocketService } from './shipping-rocket.service';
 import { ShippingRocketTestService } from './shipping.test-service';
 import { ShippingTestController } from './shipping.test-controller';
-import { ShippingMethod, Shipment, Order, ReturnShipment, Payment } from '../../database/entities';
+import { AdminShippingController } from './admin-shipping.controller';
+import { AdminShippingService } from './admin-shipping.service';
+import { ShippingMethod, Shipment, Order, ReturnShipment, Payment, ShipmentTrackingHistory } from '../../database/entities';
 import { EmailModule } from '../email/email.module';
 import { PaymentsModule } from '../payments/payments.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([ShippingMethod, Shipment, Order, ReturnShipment, Payment]),
+    TypeOrmModule.forFeature([ShippingMethod, Shipment, Order, ReturnShipment, Payment, ShipmentTrackingHistory]),
     forwardRef(() => EmailModule),
     forwardRef(() => PaymentsModule),
   ],
-  controllers: [ShippingController, ShippingWebhookController, ShippingTestController],
-  providers: [ShippingService, ShippingRocketService, ShippingRocketTestService],
-  exports: [ShippingService, ShippingRocketService, ShippingRocketTestService],
+  controllers: [ShippingController, ShippingWebhookController, ShippingTestController, AdminShippingController],
+  providers: [ShippingService, ShippingRocketService, ShippingRocketTestService, AdminShippingService],
+  exports: [ShippingService, ShippingRocketService, ShippingRocketTestService, AdminShippingService],
 })
 export class ShippingModule {}

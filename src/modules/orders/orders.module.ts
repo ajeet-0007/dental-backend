@@ -12,6 +12,7 @@ import {
   Address,
   Payment,
   Shipment,
+  ShipmentTrackingHistory,
 } from "../../database/entities";
 import { InventoryModule } from "../inventory/inventory.module";
 import { ShippingModule } from "../shipping/shipping.module";
@@ -28,6 +29,7 @@ import { ShippingModule } from "../shipping/shipping.module";
       Address,
       Payment,
       Shipment,
+      ShipmentTrackingHistory,
     ]),
     forwardRef(() => InventoryModule),
     forwardRef(() => ShippingModule),

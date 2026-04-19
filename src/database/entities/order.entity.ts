@@ -104,6 +104,13 @@ export class Order {
   @Column({ nullable: true })
   returnShipmentId: string;
 
+  // Auto-sync from webhook
+  @Column({ nullable: true, name: 'auto_shipping_status' })
+  autoShippingStatus: string;
+
+  @Column({ nullable: true, type: 'datetime', name: 'auto_shipping_at' })
+  autoShippingAt: Date;
+
   @Column({ default: false })
   isReturned: boolean;
 

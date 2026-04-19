@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { Module, forwardRef } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { AdminController } from "./admin.controller";
 import { AdminService } from "./admin.service";
@@ -12,7 +12,8 @@ import { Category } from "../../database/entities/category.entity";
 import { ProductOption } from "../../database/entities/product-option.entity";
 import { ProductOptionValue } from "../../database/entities/product-option-value.entity";
 import { Department } from "../../database/entities/department.entity";
-import { Brand } from "../../database/entities";
+import { Brand, Shipment } from "../../database/entities";
+import { ShippingModule } from "../shipping/shipping.module";
 
 @Module({
   imports: [
@@ -28,7 +29,9 @@ import { Brand } from "../../database/entities";
       ProductOptionValue,
       Department,
       Brand,
+      Shipment,
     ]),
+    forwardRef(() => ShippingModule),
   ],
   controllers: [AdminController],
   providers: [AdminService],

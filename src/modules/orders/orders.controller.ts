@@ -64,6 +64,14 @@ export class OrdersController {
     return this.ordersService.findByOrderNumber(orderNumber, req.user.id);
   }
 
+  @Get(':id/tracking')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get order tracking history' })
+  async getTrackingHistory(@Param('id') id: string) {
+    return this.ordersService.getTrackingHistory(id);
+  }
+
   @Post(':id/cancel')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()

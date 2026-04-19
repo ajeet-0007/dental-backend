@@ -120,4 +120,9 @@ export class AdminController {
   ) {
     return this.adminService.getAllPayments(+page, +limit, status);
   }
+
+  @Post("orders/:id/cancel-shipment")
+  async cancelShipment(@Param("id") id: string) {
+    return this.adminService.cancelOrderShipment(id);
+  }
 }

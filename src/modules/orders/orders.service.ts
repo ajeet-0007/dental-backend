@@ -20,6 +20,7 @@ import {
   PaymentMethod,
   Shipment,
   ShipmentStatus,
+  ShipmentTrackingHistory,
 } from "../../database/entities";
 import { CreateOrderDto, UpdateOrderStatusDto } from "./dto/order.dto";
 import { generateOrderNumber } from "../../common/utils/slugify";
@@ -51,6 +52,8 @@ export class OrdersService {
     private paymentRepository: Repository<Payment>,
     @InjectRepository(Shipment)
     private shipmentRepository: Repository<Shipment>,
+    @InjectRepository(ShipmentTrackingHistory)
+    private trackingHistoryRepository: Repository<ShipmentTrackingHistory>,
     private inventoryService: InventoryService,
     private shippingRocketService: ShippingRocketService,
     private configService: ConfigService,
@@ -295,6 +298,7 @@ export class OrdersService {
       const shipment = this.shipmentRepository.create({
         orderId: order.id,
         shippingRocketId: shipmentData.shippingRocketId,
+        srOrderId: shipmentData.srOrderId || shipmentData.shippingRocketId,
         trackingNumber: shipmentData.trackingNumber,
         awbNumber: shipmentData.awbNumber,
         courierName: shipmentData.courierName,
@@ -529,5 +533,57 @@ export class OrdersService {
 
     await this.orderRepository.save(order);
     return { success: true, message: "Order cancelled" };
+  }
+
+  async getTrackingHistory(orderId: string): Promise<{
+    shipment: any;
+    timeline: any[];
+  }> {
+    const order = await this.orderRepository.findOne({
+      where: { id: orderId },
+      relations: ['shipments', 'user'],
+    });
+
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    const shipment = order.shipments?.[0];
+    
+    if (!shipment) {
+      return {
+        shipment: null,
+        timeline: [],
+      };
+    }
+
+    const history = await this.trackingHistoryRepository.find({
+      where: { shipmentId: shipment.id },
+      order: { createdAt: 'ASC' },
+    });
+
+    const timeline = history.map((item) => ({
+      event: item.eventType,
+      status: item.status,
+      location: item.location,
+      remarks: item.remarks,
+      timestamp: item.createdAt,
+      courierName: item.courierName,
+    }));
+
+    return {
+      shipment: {
+        id: shipment.id,
+        shippingRocketId: shipment.shippingRocketId,
+        awbNumber: shipment.awbNumber,
+        trackingNumber: shipment.trackingNumber,
+        courierName: shipment.courierName,
+        status: shipment.status,
+        isCOD: shipment.isCOD,
+        lastWebhookEvent: shipment.lastWebhookEvent,
+        lastWebhookAt: shipment.lastWebhookAt,
+      },
+      timeline,
+    };
   }
 }

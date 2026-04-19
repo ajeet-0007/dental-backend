@@ -78,15 +78,30 @@ export class ShippingService {
 
     console.log('ShippingRocket create shipment response:', srResponse);
 
+    // Auto-generate label and manifest
+    let labelUrl = srResponse.labelUrl;
+    let manifestUrl = '';
+    
+    try {
+      if (srResponse.shippingRocketId) {
+        await this.shippingRocketService.generateLabel(srResponse.shippingRocketId);
+        await this.shippingRocketService.generateManifest(srResponse.shippingRocketId);
+        console.log(`Label and manifest generated for shipment: ${srResponse.shippingRocketId}`);
+      }
+    } catch (error) {
+      console.log(`Failed to auto-generate label/manifest: ${error.message}`);
+    }
+
     // Create Shipment entity
     const shipment = this.shipmentRepository.create({
       orderId: shipmentDto.orderId,
       status: ShipmentStatus.PENDING,
       shippingRocketId: srResponse.shippingRocketId,
+      srOrderId: srResponse.srOrderId || srResponse.shippingRocketId,
       courierName: srResponse.courierName,
       courierServiceType: shipmentDto.selectedService,
       trackingNumber: srResponse.trackingNumber,
-      labelUrl: srResponse.labelUrl,
+      labelUrl: labelUrl,
       awbNumber: srResponse.awbNumber,
       pickupPincode: process.env.WAREHOUSE_PINCODE || '243006',
       deliveryPincode: parsedAddress.pincode || shipmentDto.deliveryPincode || '',
@@ -114,11 +129,12 @@ export class ShippingService {
     return this.shippingRocketService.generateLabel(shippingRocketId);
   }
 
-  /**
-   * Generate bulk labels
-   */
+/**
+    * Generate bulk labels
+    */
   async generateBulkLabels(shipmentIds: string[]) {
-    return this.shippingRocketService.generateBulkLabels(shipmentIds);
+    const numericIds = shipmentIds.map(id => parseInt(id));
+    return this.shippingRocketService.generateBulkLabels(numericIds);
   }
 
   /**
@@ -133,9 +149,8 @@ export class ShippingService {
       throw new NotFoundException('Shipment not found');
     }
 
-    if (shipment.shippingRocketId) {
-      await this.shippingRocketService.cancelShipment(shipment.shippingRocketId);
-    }
+    // Use orderId to cancel on ShipRocket
+    await this.shippingRocketService.cancelShipment(shipment.orderId);
 
     shipment.status = ShipmentStatus.CANCELLED;
     await this.shipmentRepository.save(shipment);
@@ -290,11 +305,12 @@ export class ShippingService {
     return count > 0;
   }
 
-  /**
-   * Schedule pickup for shipments
-   */
+/**
+    * Schedule pickup for shipments
+    */
   async schedulePickup(shipmentIds: string[], pickupDate: Date) {
-    return this.shippingRocketService.schedulePickup(shipmentIds, pickupDate);
+    const numericIds = shipmentIds.map(id => parseInt(id));
+    return this.shippingRocketService.schedulePickup(numericIds, pickupDate);
   }
 
   /**
