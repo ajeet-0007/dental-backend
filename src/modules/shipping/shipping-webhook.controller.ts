@@ -96,7 +96,7 @@ export class ShippingWebhookController {
     const status = (payload.current_status || payload.shipment_status || '').toUpperCase();
     this.logger.log(`Processing status-based webhook: ${status}`);
     console.log('Payload for status-based webhook:', payload);
-    // Fallback: try by AWB
+    // Try by ShipRocket order ID first
     if (payload.sr_order_id) {
       const shipment = await this.shipmentRepository.findOne({
         where: { srOrderId: payload.sr_order_id?.toString() },
@@ -105,6 +105,30 @@ export class ShippingWebhookController {
 
       if (shipment) {
         await this.updateShipmentByStatus(shipment, status, payload);
+        return;
+      }
+    }
+
+    // Fallback: try by AWB
+    if (payload.awb) {
+      const shipmentByAwb = await this.shipmentRepository.findOne({
+        where: { awbNumber: payload.awb },
+        relations: ['order', 'order.user'],
+      });
+      if (shipmentByAwb) {
+        await this.updateShipmentByStatus(shipmentByAwb, status, payload);
+        return;
+      }
+    }
+
+    // Fallback: try by tracking number
+    if (payload.tracking_number) {
+      const shipmentByTracking = await this.shipmentRepository.findOne({
+        where: { trackingNumber: payload.tracking_number },
+        relations: ['order', 'order.user'],
+      });
+      if (shipmentByTracking) {
+        await this.updateShipmentByStatus(shipmentByTracking, status, payload);
         return;
       }
     }
@@ -141,6 +165,22 @@ export class ShippingWebhookController {
     shipment.status = newStatus;
     shipment.lastWebhookEvent = status;
     shipment.lastWebhookAt = new Date();
+
+    // Store AWB number from webhook payload
+    if (payload.awb) {
+      shipment.awbNumber = payload.awb;
+    }
+
+    // Store courier name from webhook payload
+    if (payload.courier_name) {
+      shipment.courierName = payload.courier_name;
+    }
+
+    // Store tracking number if available
+    if (payload.tracking_number) {
+      shipment.trackingNumber = payload.tracking_number;
+    }
+
     await this.shipmentRepository.save(shipment);
 
     // Update order status accordingly

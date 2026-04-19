@@ -309,6 +309,7 @@ export class OrdersService {
         length: length || 10,
         breadth: breadth || 10,
         height: height || 10,
+        isCOD: true,
       });
 
       order.selectedCourier = cheapestCourier.name;
