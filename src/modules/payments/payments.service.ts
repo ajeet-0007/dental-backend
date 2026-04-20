@@ -254,11 +254,7 @@ export class PaymentsService {
       return;
     }
 
-    // If already has courier/service, shipment was created during order creation (COD case)
-    if (order.selectedCourier && order.selectedService) {
-      console.log(`Order ${order.id} already has courier/service - skipping duplicate creation`);
-      return;
-    }
+    
 
     // Parse shipping address to extract pincode
     let deliveryPincode = '';
@@ -437,6 +433,16 @@ export class PaymentsService {
         }
 
         console.log("Order confirmed via existing payment");
+
+        // Auto-create shipment after payment verification
+        try {
+          console.log(`Calling createShipmentAfterPayment for order ${existingPayment.order.id}...`);
+          await this.createShipmentAfterPayment(existingPayment.order);
+          console.log(`Shipment creation completed for order ${existingPayment.order.id}`);
+        } catch (error) {
+          console.error(`Failed to create shipment for order ${existingPayment.order.id}:`, error);
+        }
+
         return { success: true, orderId: existingPayment.order.id };
       }
 
@@ -460,9 +466,38 @@ export class PaymentsService {
       );
 
       if (session.payment_status === "paid") {
-        console.log("Payment is paid, already processed by webhook");
-        // Don't process here - the webhook will handle it
-        // This prevents duplicate shipment creation from race conditions
+        console.log("Payment is paid, checking if order needs confirmation");
+
+        const orderId = session.metadata?.orderId;
+        if (orderId) {
+          const order = await this.orderRepository.findOne({
+            where: { id: orderId },
+            relations: ['items'],
+          });
+
+          if (order && order.status === OrderStatus.PENDING_PAYMENT) {
+            // Confirm order and create shipment
+            order.status = OrderStatus.CONFIRMED;
+            await this.orderRepository.save(order);
+
+            const orderItems = await this.orderItemRepository.find({
+              where: { orderId: order.id },
+            });
+            for (const item of orderItems) {
+              await this.inventoryService.reserveStock(item.productId, item.quantity);
+            }
+            console.log("Order confirmed via session verification");
+
+            try {
+              await this.createShipmentAfterPayment(order);
+              console.log(`Shipment created for order ${order.id}`);
+            } catch (error) {
+              console.error(`Failed to create shipment:`, error);
+            }
+          }
+        }
+
+        // Process complete, either way return success
         return { success: true, orderId: session.metadata?.orderId };
       }
 
