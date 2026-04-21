@@ -191,10 +191,21 @@ export class ShippingWebhookController {
         [ShipmentStatus.IN_TRANSIT.toString()]: OrderStatus.SHIPPED,
         [ShipmentStatus.OUT_FOR_DELIVERY.toString()]: OrderStatus.SHIPPED,
         [ShipmentStatus.PICKED_UP.toString()]: OrderStatus.SHIPPED,
-        [ShipmentStatus.FAILED.toString()]: OrderStatus.CONFIRMED,
-        [ShipmentStatus.RTO.toString()]: OrderStatus.REFUNDED,
+        [ShipmentStatus.FAILED.toString()]: OrderStatus.SHIPPED,
+        [ShipmentStatus.RTO.toString()]: OrderStatus.SHIPPED,
+        [ShipmentStatus.PROCESSING.toString()]: OrderStatus.PROCESSING,
       };
       shipment.order.shippingStatus = newStatus;
+      
+      // Track RTO and delivery failure separately
+      if (newStatus === ShipmentStatus.RTO) {
+        shipment.order.isRTO = true;
+      }
+      if (newStatus === ShipmentStatus.FAILED) {
+        shipment.order.deliveryFailed = true;
+        shipment.order.deliveryFailedReason = 'Delivery attempt unsuccessful';
+      }
+      
       if (orderStatusMap[newStatus.toString()]) {
         shipment.order.status = orderStatusMap[newStatus.toString()];
       }

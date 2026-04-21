@@ -133,8 +133,7 @@ export class ShippingService {
     * Generate bulk labels
     */
   async generateBulkLabels(shipmentIds: string[]) {
-    const numericIds = shipmentIds.map(id => parseInt(id));
-    return this.shippingRocketService.generateBulkLabels(numericIds);
+    return this.shippingRocketService.generateBulkLabels(shipmentIds);
   }
 
   /**
@@ -360,6 +359,48 @@ export class ShippingService {
 
     if (shipment.shippingRocketId) {
       return this.shippingRocketService.rescheduleNDRDelivery(shipment.shippingRocketId, pickupDate);
+    }
+
+    throw new BadRequestException('No ShipRocket ID available for this shipment');
+  }
+
+  /**
+   * Reschedule delivery for failed shipment (user-initiated)
+   */
+  async rescheduleDelivery(shipmentId: string, newDeliveryDate?: string) {
+    const shipment = await this.shipmentRepository.findOne({
+      where: { id: shipmentId },
+      relations: ['order'],
+    });
+
+    if (!shipment) {
+      throw new NotFoundException('Shipment not found');
+    }
+
+    if (shipment.order.deliveryFailed !== true) {
+      throw new BadRequestException('Delivery has not failed. Cannot reschedule.');
+    }
+
+    const deliveryDate = newDeliveryDate 
+      ? new Date(newDeliveryDate) 
+      : new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    if (shipment.shippingRocketId) {
+      const result = await this.shippingRocketService.rescheduleNDRDelivery(
+        shipment.shippingRocketId,
+        deliveryDate,
+      );
+
+      shipment.order.deliveryFailed = false;
+      shipment.order.deliveryFailedReason = null;
+      await this.orderRepository.save(shipment.order);
+
+      return {
+        success: true,
+        message: 'Delivery rescheduled successfully',
+        newDeliveryDate: deliveryDate.toISOString(),
+        ...result,
+      };
     }
 
     throw new BadRequestException('No ShipRocket ID available for this shipment');

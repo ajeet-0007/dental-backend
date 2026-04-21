@@ -117,6 +117,16 @@ export class Order {
   @Column({ nullable: true })
   returnInitiatedDate: Date;
 
+  // RTO and Delivery Failure Tracking
+  @Column({ default: false })
+  isRTO: boolean;
+
+  @Column({ default: false })
+  deliveryFailed: boolean;
+
+  @Column({ nullable: true, type: 'text' })
+  deliveryFailedReason: string | null;
+
   // Inventory tracking
   @Column({ default: false })
   inventoryReserved: boolean;

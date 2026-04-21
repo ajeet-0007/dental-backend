@@ -159,20 +159,6 @@ export class AdminShippingService {
     return this.shippingRocketService.generateLabel(shipment.shippingRocketId);
   }
 
-  async downloadBulkLabels(shipmentIds: string[]) {
-    const shipments = await this.shipmentRepository.findByIds(shipmentIds);
-
-    const validIds = shipments
-      .filter((s) => s.shippingRocketId)
-      .map((s) => parseInt(s.shippingRocketId));
-
-    if (validIds.length === 0) {
-      throw new HttpException('No valid shipments found', HttpStatus.BAD_REQUEST);
-    }
-
-    return this.shippingRocketService.generateBulkLabels(validIds);
-  }
-
   async downloadManifest(id: string) {
     const shipment = await this.shipmentRepository.findOne({
       where: { id },
@@ -189,12 +175,26 @@ export class AdminShippingService {
     return this.shippingRocketService.generateManifest(shipment.shippingRocketId);
   }
 
+  async downloadBulkLabels(shipmentIds: string[]) {
+    const shipments = await this.shipmentRepository.findByIds(shipmentIds);
+
+    const validIds = shipments
+      .filter((s) => s.shippingRocketId)
+      .map((s) => s.shippingRocketId);
+
+    if (validIds.length === 0) {
+      throw new HttpException('No valid shipments found', HttpStatus.BAD_REQUEST);
+    }
+
+    return this.shippingRocketService.generateBulkLabels(validIds);
+  }
+
   async downloadBulkManifests(shipmentIds: string[]) {
     const shipments = await this.shipmentRepository.findByIds(shipmentIds);
 
     const validIds = shipments
       .filter((s) => s.shippingRocketId)
-      .map((s) => parseInt(s.shippingRocketId));
+      .map((s) => s.shippingRocketId);
 
     if (validIds.length === 0) {
       throw new HttpException('No valid shipments found', HttpStatus.BAD_REQUEST);
@@ -224,7 +224,7 @@ export class AdminShippingService {
 
     const validIds = shipments
       .filter((s) => s.shippingRocketId)
-      .map((s) => parseInt(s.shippingRocketId));
+      .map((s) => s.shippingRocketId);
 
     if (validIds.length === 0) {
       throw new HttpException('No valid shipments found', HttpStatus.BAD_REQUEST);

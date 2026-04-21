@@ -471,16 +471,22 @@ export class ShippingRocketService implements OnModuleInit {
 }
   }
 
-  /**
-   * Generate shipping label (PDF)
+/**
+   * Generate shipping label (PDF) using ShipRocket API v2
    */
   async generateLabel(shippingRocketId: string) {
     try {
       await this.ensureValidToken();
 
-      const response = await this.axiosInstance.get(`/shipments/label/${shippingRocketId}`, {
-        responseType: 'arraybuffer',
-      });
+      this.logger.log(`Generating label for shipment: ${shippingRocketId}`);
+
+      const response = await this.axiosInstance.post(
+        '/courier/generate/label',
+        { shipment_id: [parseInt(shippingRocketId)] },
+        {
+          responseType: 'arraybuffer',
+        },
+      );
 
       return response.data;
     } catch (error) {
@@ -492,20 +498,18 @@ export class ShippingRocketService implements OnModuleInit {
     }
   }
 
-/**
-    * Generate labels in bulk
-    */
-  async generateBulkLabels(shipmentIds: number[]) {
+  /**
+   * Generate labels in bulk
+   */
+  async generateBulkLabels(shipmentIds: string[]) {
     try {
       await this.ensureValidToken();
 
-      const payload = {
-        shipment_ids: shipmentIds,
-      };
+      this.logger.log(`Generating bulk labels for ${shipmentIds.length} shipments`);
 
       const response = await this.axiosInstance.post(
-        '/shipments/labels/bulk-generate',
-        payload,
+        '/courier/generate/label',
+        { shipment_id: shipmentIds.map(id => parseInt(id)) },
         {
           responseType: 'arraybuffer',
         },
@@ -858,15 +862,21 @@ export class ShippingRocketService implements OnModuleInit {
   }
 
   /**
-   * Get available courier companies
+   * Generate manifest using ShipRocket API v2
    */
   async generateManifest(shippingRocketId: string): Promise<any> {
     try {
       await this.ensureValidToken();
 
-      const response = await this.axiosInstance.get(`/shipments/manifest/${shippingRocketId}`, {
-        responseType: 'arraybuffer',
-      });
+      this.logger.log(`Generating manifest for shipment: ${shippingRocketId}`);
+
+      const response = await this.axiosInstance.post(
+        '/courier/generate/manifest',
+        { shipment_id: [parseInt(shippingRocketId)] },
+        {
+          responseType: 'arraybuffer',
+        },
+      );
 
       return response.data;
     } catch (error) {
@@ -878,17 +888,15 @@ export class ShippingRocketService implements OnModuleInit {
     }
   }
 
-  async generateBulkManifests(shipmentIds: number[]): Promise<any> {
+  async generateBulkManifests(shipmentIds: string[]): Promise<any> {
     try {
       await this.ensureValidToken();
 
-      const payload = {
-        shipment_ids: shipmentIds,
-      };
+      this.logger.log(`Generating bulk manifests for ${shipmentIds.length} shipments`);
 
       const response = await this.axiosInstance.post(
-        '/shipments/manifests/bulk-generate',
-        payload,
+        '/courier/generate/manifest',
+        { shipment_id: shipmentIds.map(id => parseInt(id)) },
         {
           responseType: 'arraybuffer',
         },
@@ -904,13 +912,22 @@ export class ShippingRocketService implements OnModuleInit {
     }
   }
 
+  /**
+   * Generate invoice using ShipRocket API v2
+   */
   async generateInvoice(shippingRocketId: string): Promise<any> {
     try {
       await this.ensureValidToken();
 
-      const response = await this.axiosInstance.get(`/shipments/invoice/${shippingRocketId}`, {
-        responseType: 'arraybuffer',
-      });
+      this.logger.log(`Generating invoice for shipment: ${shippingRocketId}`);
+
+      const response = await this.axiosInstance.post(
+        '/orders/printinvoice',
+        { order_id: [parseInt(shippingRocketId)] },
+        {
+          responseType: 'arraybuffer',
+        },
+      );
 
       return response.data;
     } catch (error) {
@@ -922,17 +939,15 @@ export class ShippingRocketService implements OnModuleInit {
     }
   }
 
-  async generateBulkInvoices(shipmentIds: number[]): Promise<any> {
+  async generateBulkInvoices(shipmentIds: string[]): Promise<any> {
     try {
       await this.ensureValidToken();
 
-      const payload = {
-        shipment_ids: shipmentIds,
-      };
+      this.logger.log(`Generating bulk invoices for ${shipmentIds.length} shipments`);
 
       const response = await this.axiosInstance.post(
-        '/shipments/invoices/bulk-generate',
-        payload,
+        '/orders/printinvoice',
+        { order_id: shipmentIds.map(id => parseInt(id)) },
         {
           responseType: 'arraybuffer',
         },

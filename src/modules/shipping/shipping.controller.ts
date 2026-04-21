@@ -289,4 +289,15 @@ export class ShippingController {
       isCOD: isCOD === 'true',
     });
   }
+
+  @Post('shipments/:id/reschedule')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Reschedule delivery for failed shipment' })
+  async rescheduleDelivery(
+    @Param('id') id: string,
+    @Body() body: { newDeliveryDate?: string },
+  ) {
+    return this.shippingService.rescheduleDelivery(id, body.newDeliveryDate);
+  }
 }
