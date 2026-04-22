@@ -457,20 +457,35 @@ export class OrdersService {
   ): Promise<Order> {
     const order = await this.findOne(id);
 
-    if (
-      !Object.values(OrderStatus).includes(
-        updateOrderStatusDto.status as OrderStatus,
-      )
-    ) {
-      throw new BadRequestException("Invalid order status");
+    if (updateOrderStatusDto.status !== OrderStatus.CANCELLED) {
+      throw new BadRequestException("Only cancellation is allowed. Order status is synced automatically from ShipRocket shipment tracking.");
     }
 
-    order.status = updateOrderStatusDto.status as OrderStatus;
+    order.status = OrderStatus.CANCELLED;
     if (updateOrderStatusDto.adminNote) {
       order.adminNote = updateOrderStatusDto.adminNote;
     }
 
     if (updateOrderStatusDto.status === OrderStatus.CANCELLED) {
+      // Cancel shipment on ShipRocket
+      const shipment = await this.shipmentRepository.findOne({
+        where: { orderId: order.id },
+      });
+      
+      if (shipment?.srOrderId && shipment.status !== ShipmentStatus.CANCELLED && shipment.status !== ShipmentStatus.DELIVERED) {
+        try {
+          await this.shippingRocketService.cancelShipment(shipment.srOrderId);
+          this.logger.log(`Shipment ${shipment.id} cancelled on ShipRocket`);
+        } catch (error) {
+          this.logger.error(`Failed to cancel shipment on ShipRocket: ${error.message}`);
+          // Continue with local cancellation even if ShipRocket fails
+        }
+        
+        shipment.status = ShipmentStatus.CANCELLED;
+        await this.shipmentRepository.save(shipment);
+      }
+
+      // Release inventory
       for (const item of order.items) {
         await this.inventoryService.releaseStock(item.productId, item.quantity);
       }
@@ -528,6 +543,21 @@ export class OrdersService {
 
     order.status = OrderStatus.CANCELLED;
 
+    // Cancel shipment on ShipRocket
+    const shipment = order.shipments?.[0];
+    if (shipment?.srOrderId && shipment.status !== ShipmentStatus.CANCELLED && shipment.status !== ShipmentStatus.DELIVERED) {
+      try {
+        await this.shippingRocketService.cancelShipment(shipment.srOrderId);
+        this.logger.log(`Shipment ${shipment.id} cancelled on ShipRocket`);
+      } catch (error) {
+        this.logger.error(`Failed to cancel shipment on ShipRocket: ${error.message}`);
+      }
+      
+      shipment.status = ShipmentStatus.CANCELLED;
+      await this.shipmentRepository.save(shipment);
+    }
+
+    // Release inventory
     for (const item of order.items) {
       await this.inventoryService.releaseStock(item.productId, item.quantity);
     }
