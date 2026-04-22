@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { MulterModule } from "@nestjs/platform-express";
+import { ScheduleModule } from "@nestjs/schedule";
 import { AuthModule } from "./modules/auth/auth.module";
 import { UsersModule } from "./modules/users/users.module";
 import { AddressesModule } from "./modules/addresses/addresses.module";
@@ -22,6 +23,7 @@ import { BrandsModule } from "./modules/brands/brands.module";
 import { ReviewsModule } from "./modules/reviews/reviews.module";
 import { EmailModule } from "./modules/email/email.module";
 import { ReturnsModule } from "./modules/returns/returns.module";
+import { NewsModule } from "./modules/news/news.module";
 
 @Module({
   imports: [
@@ -34,6 +36,7 @@ import { ReturnsModule } from "./modules/returns/returns.module";
         fileSize: 5 * 1024 * 1024,
       },
     }),
+    ScheduleModule.forRoot(),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
@@ -74,6 +77,7 @@ import { ReturnsModule } from "./modules/returns/returns.module";
     BrandsModule,
     ReviewsModule,
     ReturnsModule,
+    NewsModule,
   ],
 })
 export class AppModule {}
