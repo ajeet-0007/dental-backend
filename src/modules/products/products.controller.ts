@@ -41,6 +41,12 @@ export class ProductsController {
     return this.productsService.getFeaturedProducts(+limit);
   }
 
+  @Get('top-selling')
+  @ApiOperation({ summary: 'Get top selling products (random selection by price range)' })
+  async getTopSelling(@Query('limit') limit = 20) {
+    return this.productsService.getTopSellingProducts(+limit);
+  }
+
   @Get('brands')
   @ApiOperation({ summary: 'Get all brands' })
   async getBrands() {

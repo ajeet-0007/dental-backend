@@ -976,6 +976,25 @@ export class ProductsService {
     return products;
   }
 
+  async getTopSellingProducts(limit = 20): Promise<Product[]> {
+    const MIN_PRICE = 500;
+    const MAX_PRICE = 1500;
+
+    const products = await this.productRepository
+      .createQueryBuilder("product")
+      .leftJoinAndSelect("product.category", "category")
+      .leftJoinAndSelect("product.brandEntity", "brandEntity")
+      .leftJoinAndSelect("product.inventories", "inventory")
+      .where("product.isActive = :isActive", { isActive: true })
+      .andWhere("product.sellingPrice >= :minPrice", { minPrice: MIN_PRICE })
+      .andWhere("product.sellingPrice <= :maxPrice", { maxPrice: MAX_PRICE })
+      .orderBy("RAND()")
+      .take(limit)
+      .getMany();
+
+    return products;
+  }
+
   async getRelatedProducts(productId: string, limit = 10): Promise<Product[]> {
     const product = await this.findOne(productId);
 

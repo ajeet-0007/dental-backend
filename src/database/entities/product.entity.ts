@@ -98,7 +98,7 @@ export class Product {
   @Column({ type: "text", nullable: true })
   additionalInfo: string;
 
-  @Column({ nullable: true })
+  @Column({ type: "longtext", nullable: true })
   warranty: string;
 
   @Column({ default: 0 })
