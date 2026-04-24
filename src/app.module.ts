@@ -25,6 +25,8 @@ import { EmailModule } from "./modules/email/email.module";
 import { ReturnsModule } from "./modules/returns/returns.module";
 import { NewsModule } from "./modules/news/news.module";
 
+import { AiAssistantModule } from "./modules/ai-assistant/ai-assistant.module";
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -78,6 +80,7 @@ import { NewsModule } from "./modules/news/news.module";
     ReviewsModule,
     ReturnsModule,
     NewsModule,
+    AiAssistantModule,
   ],
 })
 export class AppModule {}
