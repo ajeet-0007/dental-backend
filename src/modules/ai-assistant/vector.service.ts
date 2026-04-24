@@ -38,7 +38,7 @@ export class VectorService {
         id BIGSERIAL PRIMARY KEY,
         product_id INTEGER NOT NULL,
         content TEXT NOT NULL,
-        embedding vector(1536),
+        embedding vector(2048),
         metadata JSONB,
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
