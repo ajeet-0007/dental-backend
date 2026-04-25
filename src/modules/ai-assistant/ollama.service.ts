@@ -105,6 +105,7 @@ export class OllamaService {
       model: this.embedModel,
       input: text,
       input_type: 'query',
+      dimensions: 1536,
     }, {
       headers: {
         'Authorization': `Bearer ${this.apiKey}`,
@@ -120,6 +121,7 @@ export class OllamaService {
       model: this.embedModel,
       input: texts,
       input_type: 'query',
+      dimensions: 1536,
     }, {
       headers: {
         'Authorization': `Bearer ${this.apiKey}`,

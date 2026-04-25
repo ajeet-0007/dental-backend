@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { OllamaService } from './ollama.service';
 import { VectorService, ProductChunk } from './vector.service';
+import { ConfigService } from '@nestjs/config';
 
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
@@ -22,7 +23,14 @@ export interface ChatResponse {
 
 @Injectable()
 export class RagService {
-  private systemPrompt = `You are a helpful dental products assistant for Dentalkart, an online dental supplies store. 
+  private systemPrompt: string;
+
+  constructor(
+    private ollamaService: OllamaService,
+    private vectorService: VectorService,
+    private configService: ConfigService,
+  ) {
+    this.systemPrompt = `You are a helpful dental products assistant for Dentalkart, an online dental supplies store. 
 Your role is to help customers find the right products, answer questions about dental supplies, and provide helpful recommendations.
 You have access to product information retrieved from our database.
 
@@ -32,14 +40,10 @@ Guidelines:
 - If you don't know something, say so honestly
 - Focus on dental products like instruments, materials, equipment, and consumables
 - Prices are in Indian Rupees (₹)
-- When mentioning products, include the product URL in this format: https://dentalkart.com/product/{slug}
+- Do NOT include URLs in your response - product links are shown separately in the UI
 - Provide concise, helpful answers
-- If a product is recommended, mention its name, price, and provide the link`;
-
-  constructor(
-    private ollamaService: OllamaService,
-    private vectorService: VectorService,
-  ) {}
+- If a product is recommended, mention its name and price only`;
+  }
 
   async chat(userMessage: string, chatHistory: ChatMessage[] = []): Promise<ChatResponse> {
     const relevantProducts = await this.vectorService.search(userMessage, 5);

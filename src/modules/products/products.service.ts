@@ -298,8 +298,8 @@ export class ProductsService {
     }
 
     if (brand) {
-      const brandList = brand.split(',').map((b) => b.trim());
-      queryBuilder.andWhere('brandEntity.slug IN (:...brands)', { brands: brandList });
+      const brandList = brand.split(',').map((b) => b.trim().toLowerCase());
+      queryBuilder.andWhere('LOWER(brandEntity.slug) IN (:...brands)', { brands: brandList });
     }
 
     if (brandId) {
@@ -402,8 +402,8 @@ export class ProductsService {
     }
 
     if (brand) {
-      const brandList = brand.split(',').map((b) => b.trim());
-      totalQueryBuilder.andWhere('brandEntity.slug IN (:...brands)', { brands: brandList });
+      const brandList = brand.split(',').map((b) => b.trim().toLowerCase());
+      totalQueryBuilder.andWhere('LOWER(brandEntity.slug) IN (:...brands)', { brands: brandList });
     }
 
     if (brandId) {
@@ -946,13 +946,12 @@ export class ProductsService {
       });
     }
 
-    console.log('[DEBUG] getFeaturedProducts - Final inventory:');
     products.forEach((p) => {
       const totalStock = (p.inventories || []).reduce(
         (sum: number, inv: any) => sum + (inv.quantity - inv.reservedQuantity),
         0,
       );
-      console.log(`  ${p.name}: hasVariants=${p.hasVariants}, variantCount=${p.variants?.length}, inventoryCount=${p.inventories?.length}, totalStock=${totalStock}`);
+      //console.log(`  ${p.name}: hasVariants=${p.hasVariants}, variantCount=${p.variants?.length}, inventoryCount=${p.inventories?.length}, totalStock=${totalStock}`);
       
       // Debug specific products that might be showing out of stock
       if (p.name && p.name.toLowerCase().includes('oro')) {

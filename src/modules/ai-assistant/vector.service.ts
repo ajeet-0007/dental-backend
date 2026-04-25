@@ -108,33 +108,20 @@ export class VectorService {
   async search(query: string, topK = 5): Promise<ProductChunk[]> {
     const queryEmbedding = await this.ollamaService.embed(query);
 
-    const { data, error } = await this.supabase
-      .from(this.tableName)
-      .select('*')
-      .limit(100);
+    const { data, error } = await this.supabase.rpc('match_products', {
+      query_embedding: queryEmbedding,
+      match_threshold: 0.3,
+      match_count: topK,
+    });
 
     if (error || !data || data.length === 0) {
-      console.error('[Vector] Search error:', error);
+      console.log('[Vector] RPC search failed, trying fallback:', error);
       return this.fallbackSearch(query, topK);
     }
 
-    const scored = (data as any[])
-      .map(item => {
-        const similarity = 1 - this.cosineDistance(queryEmbedding, item.embedding);
-        return { ...item, similarity };
-      })
-      .sort((a, b) => b.similarity - a.similarity);
+    console.log('[Vector] SQL search results:', data.length);
 
-    if (scored.length === 0 || scored[0].similarity < 0.3) {
-      console.log('[Vector] Low similarity, using fallback text search');
-      return this.fallbackSearch(query, topK);
-    }
-
-    const topResults = scored.slice(0, topK);
-
-    console.log('[Vector] Filtered results:', topResults.length);
-
-    return topResults.map(item => ({
+    return data.map((item: any) => ({
       productId: item.product_id,
       chunkText: item.content,
       metadata: item.metadata,
