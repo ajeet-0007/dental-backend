@@ -2,8 +2,8 @@ import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository, Like, MoreThan } from "typeorm";
-import { Banner } from "../../database/entities";
+import { Repository } from "typeorm";
+import { News } from "../../database/entities/news.entity";
 import { tavily } from "@tavily/core";
 
 @Injectable()
@@ -14,8 +14,8 @@ export class NewsCronService {
   private readonly NEWS_COUNT = 10;
 
   constructor(
-    @InjectRepository(Banner)
-    private bannerRepository: Repository<Banner>,
+    @InjectRepository(News)
+    private newsRepository: Repository<News>,
     private configService: ConfigService,
   ) {
     const apiKey = this.configService.get("TAVILY_API_KEY");
@@ -60,15 +60,13 @@ export class NewsCronService {
       this.logger.log(`Tavily results count: ${result.results?.length || 0}`);
       this.logger.log(`First result: ${JSON.stringify(result.results?.[0]).substring(0, 200)}`);
 
-      // Delete existing news banners (where link starts with "news:")
-      await this.bannerRepository
+      await this.newsRepository
         .createQueryBuilder()
         .delete()
-        .where("link LIKE :prefix", { prefix: "news:%" })
+        .where("sourceUrl IS NOT NULL")
         .execute();
-      this.logger.log("Cleared existing news banners");
+      this.logger.log("Cleared existing news articles");
 
-      // Insert new news as banners
       const newsItems = result.results?.slice(0, this.NEWS_COUNT) || [];
       const allImages = result.images || [];
       const now = new Date();
@@ -77,17 +75,18 @@ export class NewsCronService {
         const item = newsItems[i];
         const imageUrl = allImages[i]?.url || "";
 
-        const banner = this.bannerRepository.create({
+        const news = this.newsRepository.create({
           title: item.title?.substring(0, 255) || "Dental News",
           subtitle: this.truncateSummary(item.content, 200),
+          content: item.content,
           image: imageUrl,
-          link: `news:${item.url}`,
+          sourceUrl: item.url,
+          source: item.domain,
+          publishedAt: now,
           isActive: true,
-          sortOrder: i,
-          endDate: now,
         });
 
-        await this.bannerRepository.save(banner);
+        await this.newsRepository.save(news);
       }
 
       this.logger.log(`Saved ${newsItems.length} news articles`);
@@ -104,12 +103,12 @@ export class NewsCronService {
     return cleaned.substring(0, maxLength - 3) + "...";
   }
 
-  async getLatestNews(): Promise<Banner[]> {
+  async getLatestNews(): Promise<News[]> {
     try {
-      const news = await this.bannerRepository
-        .createQueryBuilder("banner")
-        .where("banner.link LIKE :prefix", { prefix: "news:%%" })
-        .orderBy("banner.sortOrder", "ASC")
+      const news = await this.newsRepository
+        .createQueryBuilder("news")
+        .where("news.isActive = :isActive", { isActive: true })
+        .orderBy("news.publishedAt", "DESC")
         .take(this.NEWS_COUNT)
         .getMany();
       this.logger.log(`getLatestNews found: ${news.length}`);

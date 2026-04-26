@@ -11,15 +11,14 @@ export class NewsController {
   @ApiOperation({ summary: "Get latest dental news" })
   async getLatestNews() {
     const news = await this.newsCronService.getLatestNews();
-    // Clean the link field (remove "news:" prefix)
     return {
       articles: news.map((item) => ({
         id: item.id,
         title: item.title,
         subtitle: item.subtitle,
         image: item.image,
-        link: item.link?.replace(/^news:/, ""),
-        publishedAt: item.startDate,
+        link: item.sourceUrl,
+        publishedAt: item.publishedAt,
       })),
     };
   }
