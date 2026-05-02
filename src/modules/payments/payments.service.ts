@@ -15,12 +15,13 @@ import {
   OrderStatus,
   OrderItem,
 } from "../../database/entities";
-import { CreatePaymentDto } from "./dto/payment.dto";
+import { CreatePaymentDto, CreatePaymentSessionDto } from "./dto/payment.dto";
 import { InventoryService } from "../inventory/inventory.service";
 import { ShippingService } from "../shipping/shipping.service";
 import { ShippingRocketService } from "../shipping/shipping-rocket.service";
 import { errorLogger } from "../../common/utils/error-logger";
 import { CreateShipmentDto } from "../shipping/dto/create-shipment.dto";
+import { generateOrderNumber } from "../../common/utils/slugify";
 
 @Injectable()
 export class PaymentsService {
@@ -46,55 +47,51 @@ export class PaymentsService {
 
   async createPaymentSession(
     userId: string,
-    createPaymentDto: CreatePaymentDto,
+    createPaymentSessionDto: CreatePaymentSessionDto,
   ): Promise<{ sessionId: string; url: string }> {
-    const order = await this.orderRepository.findOne({
-      where: { id: createPaymentDto.orderId, userId },
-    });
-
-    if (!order) {
-      throw new NotFoundException("Order not found");
-    }
-
-    if (order.status === OrderStatus.CANCELLED) {
-      throw new BadRequestException("Cannot payment for cancelled order");
-    }
-
     const frontendUrl =
       this.configService.get("FRONTEND_URL") || "http://localhost:5173";
 
+    // Build line items from the cart items passed in
+    const lineItems = createPaymentSessionDto.items.map(item => ({
+      price_data: {
+        currency: "inr",
+        product_data: {
+          name: item.productName,
+          images: item.productImage ? [item.productImage] : undefined,
+        },
+        unit_amount: Math.round(item.unitPrice * 100),
+      },
+      quantity: item.quantity,
+    }));
+
+    // Store order data in metadata (order not created yet)
     const session = await this.stripe.checkout.sessions.create({
       payment_method_types: ["card"],
-      line_items: [
-        {
-          price_data: {
-            currency: "inr",
-            product_data: {
-              name: `Order #${order.orderNumber}`,
-              description: "Dental products purchase",
-            },
-            unit_amount: Math.round(Number(order.totalAmount) * 100),
-          },
-          quantity: 1,
-        },
-      ],
+      line_items: lineItems,
       mode: "payment",
-      success_url: `${frontendUrl}/orders/${order.id}?payment=success&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${frontendUrl}/orders/${order.id}?payment=cancelled`,
+      success_url: `${frontendUrl}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${frontendUrl}/checkout?payment=cancelled`,
       metadata: {
-        orderId: order.id,
         userId,
+        orderData: JSON.stringify({
+          addressId: createPaymentSessionDto.addressId,
+          shippingAddress: createPaymentSessionDto.shippingAddress,
+          phone: createPaymentSessionDto.phone,
+          paymentMethod: 'card',
+          couponCode: createPaymentSessionDto.couponCode,
+          customerNote: createPaymentSessionDto.customerNote,
+          selectedCourier: createPaymentSessionDto.selectedCourier,
+          selectedService: createPaymentSessionDto.selectedService,
+          shippingRate: createPaymentSessionDto.shippingRate,
+          subtotal: createPaymentSessionDto.subtotal,
+          taxAmount: createPaymentSessionDto.taxAmount,
+          shippingAmount: createPaymentSessionDto.shippingAmount,
+          totalAmount: createPaymentSessionDto.totalAmount,
+          items: createPaymentSessionDto.items,
+        }),
       },
     });
-
-    const payment = this.paymentRepository.create({
-      orderId: order.id,
-      amount: order.totalAmount,
-      status: PaymentStatus.PENDING,
-      method: PaymentMethod.CARD,
-      gatewayPaymentId: session.id,
-    });
-    await this.paymentRepository.save(payment);
 
     let checkoutUrl = session.url || "";
     console.log("[DEBUG] Original Stripe URL:", checkoutUrl);
@@ -170,11 +167,131 @@ export class PaymentsService {
     session: Stripe.Checkout.Session,
   ): Promise<void> {
     const orderId = session.metadata?.orderId;
+    const userId = session.metadata?.userId;
+    const orderDataStr = session.metadata?.orderData;
 
     console.log(`Processing checkout.session.completed for session: ${session.id}`);
     console.log(`  - orderId from metadata: ${orderId}`);
+    console.log(`  - userId from metadata: ${userId}`);
     console.log(`  - payment_intent: ${session.payment_intent}`);
 
+    // New flow: order data in metadata, create order now
+    if (orderDataStr && userId) {
+      try {
+        const orderData = JSON.parse(orderDataStr);
+        console.log(`  - Creating order from session metadata`);
+        
+        // Create order items from the items in metadata
+        const orderItems = orderData.items.map((item: any) => ({
+          productId: item.productId,
+          productVariantId: item.productVariantId,
+          productName: item.productName,
+          productImage: item.productImage || '',
+          sku: item.sku,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          sellingPrice: item.unitPrice,
+          taxAmount: Math.round(item.unitPrice * item.quantity * 0.18 * 100) / 100,
+          discountAmount: 0,
+          totalAmount: item.unitPrice * item.quantity + Math.round(item.unitPrice * item.quantity * 0.18 * 100) / 100,
+        }));
+
+        // Parse shipping address if it's a string
+        let shippingAddress = orderData.shippingAddress;
+        if (orderData.addressId) {
+          const address = await this.orderRepository.manager.findOne('Address', {
+            where: { id: +orderData.addressId, userId },
+          });
+          if (address) {
+            shippingAddress = JSON.stringify({
+              firstName: (address as any).name,
+              lastName: '',
+              name: (address as any).name,
+              addressLine1: (address as any).addressLine1,
+              addressLine2: (address as any).addressLine2,
+              city: (address as any).city,
+              state: (address as any).state,
+              pincode: (address as any).pincode,
+              country: 'India',
+              phone: (address as any).phone,
+            });
+          }
+        }
+
+        // Create the order
+        const order = this.orderRepository.create({
+          orderNumber: generateOrderNumber(),
+          userId,
+          status: OrderStatus.CONFIRMED,
+          subtotal: orderData.subtotal,
+          taxAmount: orderData.taxAmount,
+          shippingAmount: orderData.shippingAmount,
+          discountAmount: 0,
+          totalAmount: orderData.totalAmount,
+          shippingAddress,
+          customerNote: orderData.customerNote,
+          couponCode: orderData.couponCode,
+          selectedCourier: orderData.selectedCourier,
+          selectedService: orderData.selectedService,
+          shippingRate: orderData.shippingRate,
+        });
+
+        const savedOrder = await this.orderRepository.save(order);
+        console.log(`  - Order created: ${savedOrder.id}`);
+
+        // Save order items
+        const orderItemsEntities = orderItems.map((item: any) => ({
+          ...item,
+          orderId: savedOrder.id,
+        }));
+        await this.orderItemRepository.save(orderItemsEntities);
+        console.log(`  - Order items saved`);
+
+        // Create payment record
+        const payment = this.paymentRepository.create({
+          orderId: savedOrder.id,
+          amount: orderData.totalAmount,
+          status: PaymentStatus.COMPLETED,
+          method: PaymentMethod.CARD,
+          transactionId: (session.payment_intent as string) || '',
+          gatewayPaymentId: session.id,
+          gatewayResponse: JSON.stringify(session),
+        });
+        await this.paymentRepository.save(payment);
+        console.log(`  - Payment record created with status COMPLETED`);
+
+        // Reserve inventory
+        for (const item of orderItems) {
+          await this.inventoryService.reserveStock(item.productId, item.quantity);
+        }
+        console.log(`  - Inventory reserved`);
+
+        // Create shipment
+        try {
+          const fullOrder = await this.orderRepository.findOne({
+            where: { id: savedOrder.id },
+            relations: ['items', 'items.product'],
+          });
+          if (fullOrder) {
+            await this.createShipmentAfterPayment(fullOrder);
+          }
+        } catch (error) {
+          console.error(`Failed to create shipment for order ${savedOrder.id}:`, error);
+        }
+
+        console.log(`Order ${savedOrder.id} created and confirmed successfully via webhook`);
+        return;
+      } catch (error) {
+        console.error(`Error creating order from session metadata:`, error);
+        if (error instanceof Error) {
+          console.error(`Message: ${error.message}`);
+          console.error(`Stack: ${error.stack}`);
+        }
+        throw error;
+      }
+    }
+
+    // Legacy flow: order already exists (for backward compatibility)
     if (!orderId) {
       console.log("No orderId in session metadata - returning early");
       return;
@@ -409,48 +526,11 @@ export class PaymentsService {
     if (existingPayment && existingPayment.order) {
       console.log("Found existing payment for session");
 
-      if (existingPayment.order.status === OrderStatus.PENDING_PAYMENT) {
-        // Payment was successful but order not confirmed - confirm it now
-        if (existingPayment.status !== PaymentStatus.COMPLETED) {
-          existingPayment.status = PaymentStatus.COMPLETED;
-          existingPayment.transactionId = existingPayment.gatewayPaymentId;
-          await this.paymentRepository.save(existingPayment);
-        }
-
-        existingPayment.order.status = OrderStatus.CONFIRMED;
-        await this.orderRepository.save(existingPayment.order);
-
-        // Reserve inventory
-        const orderItems = await this.orderItemRepository.find({
-          where: { orderId: existingPayment.order.id },
-        });
-
-        for (const item of orderItems) {
-          await this.inventoryService.reserveStock(
-            item.productId,
-            item.quantity,
-          );
-        }
-
-        console.log("Order confirmed via existing payment");
-
-        // Auto-create shipment after payment verification
-        try {
-          console.log(`Calling createShipmentAfterPayment for order ${existingPayment.order.id}...`);
-          await this.createShipmentAfterPayment(existingPayment.order);
-          console.log(`Shipment creation completed for order ${existingPayment.order.id}`);
-        } catch (error) {
-          console.error(`Failed to create shipment for order ${existingPayment.order.id}:`, error);
-        }
-
-        return { success: true, orderId: existingPayment.order.id };
-      }
-
-      // Order already processed
+      // Order already exists and is confirmed
       return { success: true, orderId: existingPayment.order.id };
     }
 
-    // No existing payment found, try to verify with Stripe
+    // No existing payment found, verify with Stripe
     if (!this.stripe) {
       console.error("Stripe not initialized");
       return { success: false, error: "Stripe not configured" };
@@ -466,39 +546,119 @@ export class PaymentsService {
       );
 
       if (session.payment_status === "paid") {
-        console.log("Payment is paid, checking if order needs confirmation");
+        console.log("Payment is paid, creating order from session metadata");
 
-        const orderId = session.metadata?.orderId;
-        if (orderId) {
-          const order = await this.orderRepository.findOne({
-            where: { id: orderId },
-            relations: ['items'],
-          });
+        const userId = session.metadata?.userId;
+        const orderDataStr = session.metadata?.orderData;
 
-          if (order && order.status === OrderStatus.PENDING_PAYMENT) {
-            // Confirm order and create shipment
-            order.status = OrderStatus.CONFIRMED;
-            await this.orderRepository.save(order);
+        if (orderDataStr && userId) {
+          // Create order now (same logic as webhook)
+          try {
+            const orderData = JSON.parse(orderDataStr);
+            
+            const orderItems = orderData.items.map((item: any) => ({
+              productId: item.productId,
+              productVariantId: item.productVariantId,
+              productName: item.productName,
+              productImage: item.productImage || '',
+              sku: item.sku,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              sellingPrice: item.unitPrice,
+              taxAmount: Math.round(item.unitPrice * item.quantity * 0.18 * 100) / 100,
+              discountAmount: 0,
+              totalAmount: item.unitPrice * item.quantity + Math.round(item.unitPrice * item.quantity * 0.18 * 100) / 100,
+            }));
 
-            const orderItems = await this.orderItemRepository.find({
-              where: { orderId: order.id },
+            // Parse shipping address if it's a string
+            let shippingAddress = orderData.shippingAddress;
+            if (orderData.addressId) {
+              const address = await this.orderRepository.manager.findOne('Address', {
+                where: { id: +orderData.addressId, userId },
+              });
+              if (address) {
+                shippingAddress = JSON.stringify({
+                  firstName: (address as any).name,
+                  lastName: '',
+                  name: (address as any).name,
+                  addressLine1: (address as any).addressLine1,
+                  addressLine2: (address as any).addressLine2,
+                  city: (address as any).city,
+                  state: (address as any).state,
+                  pincode: (address as any).pincode,
+                  country: 'India',
+                  phone: (address as any).phone,
+                });
+              }
+            }
+
+            // Create the order
+            const order = this.orderRepository.create({
+              orderNumber: generateOrderNumber(),
+              userId,
+              status: OrderStatus.CONFIRMED,
+              subtotal: orderData.subtotal,
+              taxAmount: orderData.taxAmount,
+              shippingAmount: orderData.shippingAmount,
+              discountAmount: 0,
+              totalAmount: orderData.totalAmount,
+              shippingAddress,
+              customerNote: orderData.customerNote,
+              couponCode: orderData.couponCode,
+              selectedCourier: orderData.selectedCourier,
+              selectedService: orderData.selectedService,
+              shippingRate: orderData.shippingRate,
             });
+
+            const savedOrder = await this.orderRepository.save(order);
+            console.log(`  - Order created: ${savedOrder.id}`);
+
+            // Save order items
+            const orderItemsEntities = orderItems.map((item: any) => ({
+              ...item,
+              orderId: savedOrder.id,
+            }));
+            await this.orderItemRepository.save(orderItemsEntities);
+
+            // Create payment record
+            const payment = this.paymentRepository.create({
+              orderId: savedOrder.id,
+              amount: orderData.totalAmount,
+              status: PaymentStatus.COMPLETED,
+              method: PaymentMethod.CARD,
+              transactionId: (session.payment_intent as string) || '',
+              gatewayPaymentId: session.id,
+              gatewayResponse: JSON.stringify(session),
+            });
+            await this.paymentRepository.save(payment);
+
+            // Reserve inventory
             for (const item of orderItems) {
               await this.inventoryService.reserveStock(item.productId, item.quantity);
             }
-            console.log("Order confirmed via session verification");
 
+            // Create shipment
             try {
-              await this.createShipmentAfterPayment(order);
-              console.log(`Shipment created for order ${order.id}`);
+              const fullOrder = await this.orderRepository.findOne({
+                where: { id: savedOrder.id },
+                relations: ['items', 'items.product'],
+              });
+              if (fullOrder) {
+                await this.createShipmentAfterPayment(fullOrder);
+              }
             } catch (error) {
-              console.error(`Failed to create shipment:`, error);
+              console.error(`Failed to create shipment for order ${savedOrder.id}:`, error);
             }
+
+            console.log(`Order ${savedOrder.id} created and confirmed via session verification`);
+            return { success: true, orderId: savedOrder.id };
+          } catch (error) {
+            console.error("Error creating order from session:", error);
+            return { success: false, error: "Failed to create order from session" };
           }
         }
 
-        // Process complete, either way return success
-        return { success: true, orderId: session.metadata?.orderId };
+        return { success: true };
       }
 
       console.log("Payment not completed, status:", session.payment_status);

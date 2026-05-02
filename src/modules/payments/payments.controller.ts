@@ -13,7 +13,7 @@ import {
 } from "@nestjs/common";
 import { ApiTags, ApiOperation, ApiBearerAuth } from "@nestjs/swagger";
 import { PaymentsService } from "./payments.service";
-import { CreatePaymentDto } from "./dto/payment.dto";
+import { CreatePaymentDto, CreatePaymentSessionDto } from "./dto/payment.dto";
 import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
 import { RolesGuard } from "../../common/guards/roles.guard";
 import { Roles } from "../../common/decorators/roles.decorator";
@@ -31,11 +31,11 @@ export class PaymentsController {
   @ApiOperation({ summary: "Create Stripe checkout session" })
   async createCheckoutSession(
     @Request() req: any,
-    @Body() createPaymentDto: CreatePaymentDto,
+    @Body() createPaymentSessionDto: CreatePaymentSessionDto,
   ) {
     return this.paymentsService.createPaymentSession(
       req.user.id,
-      createPaymentDto,
+      createPaymentSessionDto,
     );
   }
 
