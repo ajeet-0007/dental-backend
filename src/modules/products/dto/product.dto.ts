@@ -106,11 +106,6 @@ export class CreateProductDto {
 
   @ApiProperty({ required: false })
   @IsOptional()
-  @IsString()
-  sku?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
   @IsBoolean()
   hasVariants?: boolean;
 
