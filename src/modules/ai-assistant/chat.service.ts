@@ -46,7 +46,7 @@ export class ChatService {
           shortDescription: product.shortDescription || '',
           category: product.category?.name || 'General',
           brand: product.brand || product.brandEntity?.name || '',
-          price: product.sellingPrice || product.price || 0,
+          sellingPrice: product.sellingPrice,
           slug: product.slug,
         });
 
@@ -72,7 +72,7 @@ export class ChatService {
             shortDescription: product.shortDescription || '',
             category: product.category?.name || 'General',
             brand: product.brand || product.brandEntity?.name || '',
-            price: product.sellingPrice || product.price || 0,
+            sellingPrice: product.sellingPrice,
             slug: product.slug,
           })),
         );
@@ -97,7 +97,7 @@ export class ChatService {
           shortDescription: product.shortDescription || '',
           category: product.category?.name || 'General',
           brand: product.brand || product.brandEntity?.name || '',
-          price: product.sellingPrice || product.price || 0,
+          sellingPrice: product.sellingPrice,
           slug: product.slug,
         })),
       );

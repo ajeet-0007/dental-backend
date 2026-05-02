@@ -27,17 +27,7 @@ export class CreateProductDto {
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
-  description?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  shortDescription?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsNumber()
-  price?: number;
+  sku?: string;
 
   @ApiProperty({ required: false })
   @IsOptional()
@@ -322,12 +312,7 @@ export class CreateProductVariantDto {
 
   @ApiProperty()
   @IsNumber()
-  price: number;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsNumber()
-  sellingPrice?: number;
+  sellingPrice: number;
 
   @ApiProperty({ required: false })
   @IsOptional()
@@ -405,11 +390,6 @@ export class UpdateProductVariantDto {
   @IsOptional()
   @IsString()
   sku?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsNumber()
-  price?: number;
 
   @ApiProperty({ required: false })
   @IsOptional()
@@ -608,12 +588,7 @@ export class CreateVariantDto {
 
   @ApiProperty()
   @IsNumber()
-  price: number;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsNumber()
-  sellingPrice?: number;
+  sellingPrice: number;
 
   @ApiProperty({ required: false })
   @IsOptional()
@@ -686,11 +661,6 @@ export class CreateProductWithVariantsDto {
   @IsOptional()
   @IsString()
   sku?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsNumber()
-  price?: number;
 
   @ApiProperty({ required: false })
   @IsOptional()
@@ -782,9 +752,6 @@ export class VariantWithAttributesDto {
   sku?: string;
 
   @ApiProperty()
-  price: number;
-
-  @ApiProperty()
   sellingPrice: number;
 
   @ApiProperty()
@@ -839,9 +806,6 @@ export class ProductWithVariantsDto {
 
   @ApiProperty({ required: false })
   sku?: string;
-
-  @ApiProperty()
-  price: number;
 
   @ApiProperty()
   sellingPrice: number;

@@ -122,7 +122,7 @@ export class CartService {
         name: item.product.name,
         slug: item.product.slug,
         images: item.product.images,
-        price: item.product.price,
+        price: item.product.sellingPrice,
         sellingPrice: item.product.sellingPrice,
         mrp: item.product.mrp,
         unit: item.product.unit,
@@ -139,7 +139,6 @@ export class CartService {
             size: item.productVariant.size,
             flavor: item.productVariant.flavor,
             packQuantity: item.productVariant.packQuantity,
-            price: item.productVariant.price,
             sellingPrice: item.productVariant.sellingPrice,
             mrp: item.productVariant.mrp,
             image: item.productVariant.image,
@@ -201,7 +200,7 @@ export class CartService {
     const cartItems = await this.getCart(userId);
 
     const subtotal = cartItems.reduce((total, item) => {
-      const price = item.variant?.price || item.product.sellingPrice;
+      const price = item.variant?.sellingPrice || item.product.sellingPrice;
       return total + price * item.quantity;
     }, 0);
 

@@ -15,7 +15,7 @@ export interface ChatResponse {
     id: number;
     name: string;
     slug: string;
-    price: number;
+    sellingPrice: number;
     category: string;
     brand: string;
   }>;
@@ -64,7 +64,7 @@ Guidelines:
         id: p.productId,
         name: p.metadata?.name || 'Unknown Product',
         slug: p.metadata?.slug || '',
-        price: p.metadata?.price || 0,
+        sellingPrice: p.metadata?.sellingPrice || 0,
         category: p.metadata?.category || 'General',
         brand: p.metadata?.brand || 'Unknown',
       }));

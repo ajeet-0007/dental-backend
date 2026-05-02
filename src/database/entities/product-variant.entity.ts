@@ -30,9 +30,6 @@ export class ProductVariant {
   sku: string;
 
   @Column({ default: 0 })
-  price: number;
-
-  @Column({ default: 0 })
   sellingPrice: number;
 
   @Column({ default: 0 })

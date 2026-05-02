@@ -420,7 +420,7 @@ export class ShippingRocketTestService {
           {
             name: 'Test Product',
             quantity: 1,
-            price: 100,
+            sellingPrice: 100,
           },
         ],
       };

@@ -32,7 +32,7 @@ export class ChatMessageResponse {
     id: number;
     name: string;
     slug: string;
-    price: number;
+    sellingPrice: number;
     category: string;
     brand: string;
   }>;

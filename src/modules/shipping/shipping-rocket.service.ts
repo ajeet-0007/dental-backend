@@ -386,7 +386,7 @@ export class ShippingRocketService implements OnModuleInit {
     // Calculate sub_total from items
     const items = order.items || [];
     const subTotal = items.reduce((sum: number, item: any) => {
-      return sum + ((item.sellingPrice || item.price || 0) * (item.quantity || 1));
+      return sum + ((item.sellingPrice || 0) * (item.quantity || 1));
     }, 0);
 
     const payload = {
@@ -432,7 +432,7 @@ export class ShippingRocketService implements OnModuleInit {
         name: item.productName || item.product?.name || 'Product',
         sku: item.sku || item.product?.sku || '',
         units: item.quantity || 1,
-        selling_price: item.sellingPrice || item.price || 0,
+        selling_price: item.sellingPrice || 0,
         product_variant_id: item.productVariantId || item.productVariant?.id || '',
       })) || [],
     };

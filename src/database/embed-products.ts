@@ -80,7 +80,7 @@ async function embedAll() {
   // 1. EMBED PRODUCTS with full info
   console.log('\n=== EMBEDDING PRODUCTS ===');
   const [products] = await conn.execute(`
-    SELECT p.id, p.name, p.slug, p.price, p.sellingPrice, p.brand,
+    SELECT p.id, p.name, p.slug, p.sellingPrice, p.brand,
            p.shortDescription, p.description,
            c.name as category
     FROM products p
@@ -97,7 +97,7 @@ async function embedAll() {
       `Product: ${p.name}`,
       `Brand: ${p.brand || 'Generic'}`,
       `Category: ${p.category || 'Dental'}`,
-      `Price: ₹${p.sellingPrice || p.price || 0}`,
+      `Price: ₹${p.sellingPrice || 0}`,
       `Description: ${p.description || p.shortDescription || 'N/A'}`,
     ].filter(Boolean).join('\n');
 
@@ -106,7 +106,7 @@ async function embedAll() {
       name: p.name,
       brand: p.brand,
       category: p.category,
-      price: p.sellingPrice || p.price,
+      sellingPrice: p.sellingPrice,
       slug: p.slug,
       type: 'product',
     });
@@ -118,7 +118,7 @@ async function embedAll() {
   // 2. EMBED PRODUCT VARIANTS
   console.log('\n=== EMBEDDING VARIANTS ===');
   const [variants] = await conn.execute(`
-    SELECT pv.id, pv.name, pv.sku, pv.price, pv.sellingPrice,
+    SELECT pv.id, pv.name, pv.sku, pv.sellingPrice,
            pv.weight, pv.weightUnit, pv.color, pv.size, pv.flavor, pv.packQuantity,
            p.name as productName, p.slug as productSlug, p.brand, c.name as category
     FROM product_variants pv
@@ -146,7 +146,7 @@ async function embedAll() {
       `SKU: ${v.sku || 'N/A'}`,
       `Brand: ${v.brand || 'Generic'}`,
       `Category: ${v.category || 'Dental'}`,
-      `Price: ₹${v.sellingPrice || v.price}`,
+      `Price: ₹${v.sellingPrice}`,
       details ? `Options: ${details}` : null,
     ].filter(Boolean).join('\n');
 
@@ -156,7 +156,7 @@ async function embedAll() {
       productName: v.productName,
       brand: v.brand,
       category: v.category,
-      price: v.sellingPrice || v.price,
+      sellingPrice: v.sellingPrice,
       slug: v.productSlug,
       type: 'variant',
       variantId: v.id,

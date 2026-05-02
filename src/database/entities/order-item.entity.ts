@@ -45,7 +45,7 @@ export class OrderItem {
   quantity: number;
 
   @Column({ type: 'decimal', precision: 10, scale: 2 })
-  price: number;
+  unitPrice: number;
 
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   sellingPrice: number;

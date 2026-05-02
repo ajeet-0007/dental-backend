@@ -63,8 +63,6 @@ export class ProductsService {
       ...restDto,
       slug,
       sku,
-      sellingPrice: createProductDto.sellingPrice || createProductDto.price,
-      mrp: createProductDto.mrp || createProductDto.price,
     });
 
     const savedProduct = await this.productRepository.save(product);
@@ -105,9 +103,8 @@ export class ProductsService {
         sku,
         description: dto.description,
         shortDescription: dto.shortDescription,
-        price: dto.price || 0,
-        sellingPrice: dto.sellingPrice || dto.price || 0,
-        mrp: dto.mrp || dto.price || 0,
+        sellingPrice: dto.sellingPrice || 0,
+        mrp: dto.mrp || 0,
         brand: dto.brand,
         unit: dto.unit || 'unit',
         images: dto.images,
@@ -169,9 +166,8 @@ export class ProductsService {
             productId: String(savedProduct.id),
             name: variantDto.name || '',
             sku: variantSku,
-            price: variantDto.price,
-            sellingPrice: variantDto.sellingPrice || variantDto.price,
-            mrp: variantDto.mrp || variantDto.price,
+            sellingPrice: variantDto.sellingPrice,
+            mrp: variantDto.mrp || variantDto.sellingPrice,
             weight: variantDto.weight || 0,
             weightUnit: variantDto.weightUnit || '',
             image: variantDto.image,
@@ -620,15 +616,13 @@ export class ProductsService {
     }
 
     const sku = createVariantDto.sku || generateSKU("VAR");
-    const price = Number(createVariantDto.price) || 0;
 
     const variant = this.productVariantRepository.create({
       productId: String(product.id),
       name: createVariantDto.name || '',
       sku,
-      price,
-      sellingPrice: Number(createVariantDto.sellingPrice) || price,
-      mrp: Number(createVariantDto.mrp) || price,
+      sellingPrice: createVariantDto.sellingPrice,
+      mrp: createVariantDto.mrp || createVariantDto.sellingPrice,
       weight: Number(createVariantDto.weight) || 0,
       weightUnit: createVariantDto.weightUnit || '',
       color: createVariantDto.color || '',
@@ -717,15 +711,13 @@ export class ProductsService {
 
       for (const dto of variantDtos) {
         const sku = dto.sku || generateSKU("VAR");
-        const price = Number(dto.price) || 0;
 
         const variant = queryRunner.manager.create(ProductVariant, {
           productId: String(product.id),
           name: dto.name || '',
           sku,
-          price,
-          sellingPrice: Number(dto.sellingPrice) || price,
-          mrp: Number(dto.mrp) || price,
+          sellingPrice: dto.sellingPrice,
+          mrp: dto.mrp || dto.sellingPrice,
           weight: Number(dto.weight) || 0,
           weightUnit: dto.weightUnit || '',
           color: dto.color || '',
@@ -848,7 +840,6 @@ export class ProductsService {
     }
 
     const sanitizedDto: any = { ...updateVariantDto };
-    if (sanitizedDto.price !== undefined) sanitizedDto.price = Number(sanitizedDto.price) || 0;
     if (sanitizedDto.sellingPrice !== undefined) sanitizedDto.sellingPrice = Number(sanitizedDto.sellingPrice) || 0;
     if (sanitizedDto.mrp !== undefined) sanitizedDto.mrp = Number(sanitizedDto.mrp) || 0;
     if (sanitizedDto.weight !== undefined) sanitizedDto.weight = Number(sanitizedDto.weight) || 0;

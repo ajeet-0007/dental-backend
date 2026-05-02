@@ -107,7 +107,7 @@ export class EmailService {
     customerEmail: string;
     customerName: string;
     totalAmount: number;
-    items: Array<{ name: string; quantity: number; price: number }>;
+    items: Array<{ name: string; quantity: number; sellingPrice: number }>;
   }): Promise<boolean> {
     return this.sendEmail({
       to: orderData.customerEmail,

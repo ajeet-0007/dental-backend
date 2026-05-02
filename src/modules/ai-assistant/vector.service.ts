@@ -10,7 +10,7 @@ export interface ProductChunk {
     name: string;
     category: string;
     brand: string;
-    price: number;
+    sellingPrice: number;
     slug: string;
   };
 }
@@ -63,7 +63,7 @@ export class VectorService {
     description: string;
     category: string;
     brand: string;
-    price: number;
+    sellingPrice: number;
     slug: string;
     shortDescription?: string;
   }): Promise<void> {
@@ -79,7 +79,7 @@ export class VectorService {
           name: product.name,
           category: product.category,
           brand: product.brand,
-          price: product.price,
+          sellingPrice: product.sellingPrice,
           slug: product.slug,
         },
         updated_at: new Date().toISOString(),
@@ -96,7 +96,7 @@ export class VectorService {
     description: string;
     category: string;
     brand: string;
-    price: number;
+    sellingPrice: number;
     slug: string;
     shortDescription?: string;
   }>): Promise<void> {
@@ -189,14 +189,14 @@ export class VectorService {
     description: string;
     category: string;
     brand: string;
-    price: number;
+    sellingPrice: number;
     shortDescription?: string;
   }): string {
     return `
 Product Name: ${product.name}
 Category: ${product.category || 'General'}
 Brand: ${product.brand || 'Unknown'}
-Price: ₹${product.price}
+Price: ₹${product.sellingPrice}
 Short Description: ${product.shortDescription || 'N/A'}
 Description: ${product.description || 'N/A'}
     `.trim();
