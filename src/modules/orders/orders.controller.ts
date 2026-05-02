@@ -41,8 +41,9 @@ export class OrdersController {
     @Request() req: any,
     @Query('page') page = 1,
     @Query('limit') limit = 10,
+    @Query('status') status?: string,
   ) {
-    return this.ordersService.findAll(req.user.id, +page, +limit);
+    return this.ordersService.findAll(req.user.id, +page, +limit, status);
   }
 
   @Get(':id')

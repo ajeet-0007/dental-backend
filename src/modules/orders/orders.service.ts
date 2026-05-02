@@ -362,7 +362,8 @@ export class OrdersService {
     userId: string,
     page = 1,
     limit = 10,
-  ): Promise<{ orders: any[]; total: number }> {
+    status?: string,
+  ): Promise<{ orders: any[]; total: number; counts: Record<string, number> }> {
     const queryBuilder = this.orderRepository
       .createQueryBuilder("order")
       .leftJoinAndSelect("order.items", "items")
@@ -370,12 +371,62 @@ export class OrdersService {
       .where("order.userId = :userId", { userId })
       .andWhere("order.status != :failedStatus", {
         failedStatus: OrderStatus.PAYMENT_FAILED,
-      })
+      });
+
+    if (status) {
+      queryBuilder.andWhere("order.status = :status", { status });
+    }
+
+    queryBuilder
       .orderBy("order.createdAt", "DESC")
-      .skip((page - 1) * limit)
+      .skip((page -1) * limit)
       .take(limit);
 
     const [orders, total] = await queryBuilder.getManyAndCount();
+
+    // Get counts for each filter category
+    const countsQuery = this.orderRepository
+      .createQueryBuilder("order")
+      .select("order.status", "status")
+      .addSelect("COUNT(*)", "count")
+      .where("order.userId = :userId", { userId })
+      .andWhere("order.status != :failedStatus", {
+        failedStatus: OrderStatus.PAYMENT_FAILED,
+      })
+      .groupBy("order.status");
+
+    const countResults = await countsQuery.getRawMany();
+    
+    // Calculate counts for filter categories
+    const statusCounts: Record<string, number> = {};
+    let allCount = 0;
+    let activeCount = 0;
+    let completedCount = 0;
+    let cancelledCount = 0;
+
+    countResults.forEach((row: any) => {
+      const status = row.status;
+      const count = parseInt(row.count);
+      statusCounts[status] = count;
+      allCount += count;
+      
+      if (['pending', 'pending_payment', 'confirmed', 'processing', 'shipped'].includes(status)) {
+        activeCount += count;
+      }
+      if (status === 'delivered') {
+        completedCount += count;
+      }
+      if (status === 'cancelled' || status === 'payment_failed') {
+        cancelledCount += count;
+      }
+    });
+
+    const counts = {
+      all: allCount,
+      active: activeCount,
+      completed: completedCount,
+      cancelled: cancelledCount,
+    };
 
     return {
       orders: orders.map((order) => ({
@@ -403,6 +454,7 @@ export class OrdersService {
           })) || [],
       })),
       total,
+      counts,
     };
   }
 
