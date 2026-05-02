@@ -14,6 +14,7 @@ import {
   PaymentMethod,
   OrderStatus,
   OrderItem,
+  PaymentIntent,
 } from "../../database/entities";
 import { CreatePaymentDto, CreatePaymentSessionDto } from "./dto/payment.dto";
 import { InventoryService } from "../inventory/inventory.service";
@@ -34,6 +35,8 @@ export class PaymentsService {
     private orderRepository: Repository<Order>,
     @InjectRepository(OrderItem)
     private orderItemRepository: Repository<OrderItem>,
+    @InjectRepository(PaymentIntent)
+    private paymentIntentRepository: Repository<PaymentIntent>,
     private configService: ConfigService,
     private inventoryService: InventoryService,
     private shippingService: ShippingService,
@@ -65,7 +68,16 @@ export class PaymentsService {
       quantity: item.quantity,
     }));
 
-    // Store order data in metadata (order not created yet)
+    // Save order data to PaymentIntent table (avoids Stripe metadata 500 char limit)
+    const paymentIntent = this.paymentIntentRepository.create({
+      userId,
+      orderData: JSON.stringify(createPaymentSessionDto),
+      used: false,
+    });
+    const savedIntent = await this.paymentIntentRepository.save(paymentIntent);
+    console.log(`[PaymentIntent] Created: ${savedIntent.id}`);
+
+    // Store only paymentIntentId and userId in Stripe metadata (well under 500 chars)
     const session = await this.stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       line_items: lineItems,
@@ -73,23 +85,8 @@ export class PaymentsService {
       success_url: `${frontendUrl}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${frontendUrl}/checkout?payment=cancelled`,
       metadata: {
+        paymentIntentId: savedIntent.id,
         userId,
-        orderData: JSON.stringify({
-          addressId: createPaymentSessionDto.addressId,
-          shippingAddress: createPaymentSessionDto.shippingAddress,
-          phone: createPaymentSessionDto.phone,
-          paymentMethod: 'card',
-          couponCode: createPaymentSessionDto.couponCode,
-          customerNote: createPaymentSessionDto.customerNote,
-          selectedCourier: createPaymentSessionDto.selectedCourier,
-          selectedService: createPaymentSessionDto.selectedService,
-          shippingRate: createPaymentSessionDto.shippingRate,
-          subtotal: createPaymentSessionDto.subtotal,
-          taxAmount: createPaymentSessionDto.taxAmount,
-          shippingAmount: createPaymentSessionDto.shippingAmount,
-          totalAmount: createPaymentSessionDto.totalAmount,
-          items: createPaymentSessionDto.items,
-        }),
       },
     });
 
@@ -168,20 +165,36 @@ export class PaymentsService {
   ): Promise<void> {
     const orderId = session.metadata?.orderId;
     const userId = session.metadata?.userId;
-    const orderDataStr = session.metadata?.orderData;
+    const paymentIntentId = session.metadata?.paymentIntentId;
 
     console.log(`Processing checkout.session.completed for session: ${session.id}`);
     console.log(`  - orderId from metadata: ${orderId}`);
     console.log(`  - userId from metadata: ${userId}`);
+    console.log(`  - paymentIntentId from metadata: ${paymentIntentId}`);
     console.log(`  - payment_intent: ${session.payment_intent}`);
 
-    // New flow: order data in metadata, create order now
-    if (orderDataStr && userId) {
+    // New flow: order data in PaymentIntent table, create order now
+    if (paymentIntentId) {
       try {
-        const orderData = JSON.parse(orderDataStr);
-        console.log(`  - Creating order from session metadata`);
-        
-        // Create order items from the items in metadata
+        // Fetch order data from PaymentIntent table
+        const paymentIntent = await this.paymentIntentRepository.findOne({
+          where: { id: paymentIntentId, userId },
+        });
+
+        if (!paymentIntent) {
+          console.error(`PaymentIntent not found: ${paymentIntentId}`);
+          return;
+        }
+
+        if (paymentIntent.used) {
+          console.log(`PaymentIntent already used: ${paymentIntentId}`);
+          return;
+        }
+
+        const orderData = JSON.parse(paymentIntent.orderData);
+        console.log(`  - Creating order from PaymentIntent`);
+
+        // Create order items from the items in PaymentIntent
         const orderItems = orderData.items.map((item: any) => ({
           productId: item.productId,
           productVariantId: item.productVariantId,
@@ -260,6 +273,10 @@ export class PaymentsService {
         await this.paymentRepository.save(payment);
         console.log(`  - Payment record created with status COMPLETED`);
 
+        // Mark PaymentIntent as used
+        paymentIntent.used = true;
+        await this.paymentIntentRepository.save(paymentIntent);
+
         // Reserve inventory
         for (const item of orderItems) {
           await this.inventoryService.reserveStock(item.productId, item.quantity);
@@ -282,7 +299,7 @@ export class PaymentsService {
         console.log(`Order ${savedOrder.id} created and confirmed successfully via webhook`);
         return;
       } catch (error) {
-        console.error(`Error creating order from session metadata:`, error);
+        console.error(`Error creating order from PaymentIntent:`, error);
         if (error instanceof Error) {
           console.error(`Message: ${error.message}`);
           console.error(`Stack: ${error.stack}`);
@@ -525,8 +542,6 @@ export class PaymentsService {
 
     if (existingPayment && existingPayment.order) {
       console.log("Found existing payment for session");
-
-      // Order already exists and is confirmed
       return { success: true, orderId: existingPayment.order.id };
     }
 
@@ -538,24 +553,32 @@ export class PaymentsService {
 
     try {
       const session = await this.stripe.checkout.sessions.retrieve(sessionId);
-      console.log(
-        "Session retrieved:",
-        session.id,
-        "Status:",
-        session.payment_status,
-      );
+      console.log("Session retrieved:", session.id, "Status:", session.payment_status);
 
       if (session.payment_status === "paid") {
-        console.log("Payment is paid, creating order from session metadata");
+        console.log("Payment is paid, creating order from PaymentIntent");
 
         const userId = session.metadata?.userId;
-        const orderDataStr = session.metadata?.orderData;
+        const paymentIntentId = session.metadata?.paymentIntentId;
 
-        if (orderDataStr && userId) {
+        if (paymentIntentId) {
+          // Fetch order data from PaymentIntent table
+          const paymentIntent = await this.paymentIntentRepository.findOne({
+            where: { id: paymentIntentId, userId },
+          });
+
+          if (!paymentIntent) {
+            return { success: false, error: "PaymentIntent not found" };
+          }
+
+          if (paymentIntent.used) {
+            return { success: true };
+          }
+
+          const orderData = JSON.parse(paymentIntent.orderData);
+
           // Create order now (same logic as webhook)
           try {
-            const orderData = JSON.parse(orderDataStr);
-            
             const orderItems = orderData.items.map((item: any) => ({
               productId: item.productId,
               productVariantId: item.productVariantId,
@@ -632,6 +655,10 @@ export class PaymentsService {
             });
             await this.paymentRepository.save(payment);
 
+            // Mark PaymentIntent as used
+            paymentIntent.used = true;
+            await this.paymentIntentRepository.save(paymentIntent);
+
             // Reserve inventory
             for (const item of orderItems) {
               await this.inventoryService.reserveStock(item.productId, item.quantity);
@@ -653,8 +680,8 @@ export class PaymentsService {
             console.log(`Order ${savedOrder.id} created and confirmed via session verification`);
             return { success: true, orderId: savedOrder.id };
           } catch (error) {
-            console.error("Error creating order from session:", error);
-            return { success: false, error: "Failed to create order from session" };
+            console.error("Error creating order from PaymentIntent:", error);
+            return { success: false, error: "Failed to create order from PaymentIntent" };
           }
         }
 

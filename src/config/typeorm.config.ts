@@ -14,6 +14,7 @@ import { Cart } from "../database/entities/cart.entity";
 import { Order } from "../database/entities/order.entity";
 import { OrderItem } from "../database/entities/order-item.entity";
 import { Payment } from "../database/entities/payment.entity";
+import { PaymentIntent } from "../database/entities/payment-intent.entity";
 import { Shipment } from "../database/entities/shipment.entity";
 import { ShipmentTrackingHistory } from "../database/entities/shipment-tracking-history.entity";
 import { Inventory } from "../database/entities/inventory.entity";
@@ -46,6 +47,7 @@ export const AppDataSource = new DataSource({
     Order,
     OrderItem,
     Payment,
+    PaymentIntent,
     Shipment,
     ShipmentTrackingHistory,
     Inventory,

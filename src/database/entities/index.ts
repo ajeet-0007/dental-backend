@@ -8,6 +8,7 @@ export * from './cart.entity';
 export * from './order.entity';
 export * from './order-item.entity';
 export * from './payment.entity';
+export * from './payment-intent.entity';
 export * from './shipment.entity';
 export * from './shipment-tracking-history.entity';
 export * from './return-shipment.entity';
