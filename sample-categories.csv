@@ -1,0 +1,6 @@
+name,description,image_url,is_active,sort_order
+"Toothpaste","All types of toothpaste for adults and kids","",true,1
+"Toothbrushes","Manual and electric toothbrushes","",true,2
+"Dental Floss","Floss, interdental brushes and picks","",true,3
+"Mouthwash","Antiseptic and fluoride mouthwashes","",true,4
+"Whitening","Teeth whitening products and kits","",true,5

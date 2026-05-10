@@ -20,6 +20,7 @@
     "seed:embed-products": "ts-node src/database/embed-products.ts"
   },
   "dependencies": {
+    "@fast-csv/parse": "^5.0.5",
     "@nestjs-modules/mailer": "^2.3.4",
     "@nestjs/common": "^10.3.0",
     "@nestjs/config": "^3.1.1",

@@ -26,6 +26,8 @@ import { ReturnsModule } from "./modules/returns/returns.module";
 import { NewsModule } from "./modules/news/news.module";
 
 import { AiAssistantModule } from "./modules/ai-assistant/ai-assistant.module";
+import { BulkUploadModule } from "./modules/bulk-upload/bulk-upload.module";
+import { EntityBulkUploadModule } from "./modules/entity-bulk-upload/entity-bulk-upload.module";
 
 @Module({
   imports: [
@@ -81,6 +83,8 @@ import { AiAssistantModule } from "./modules/ai-assistant/ai-assistant.module";
     ReturnsModule,
     NewsModule,
     AiAssistantModule,
+    BulkUploadModule,
+    EntityBulkUploadModule,
   ],
 })
 export class AppModule {}

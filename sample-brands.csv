@@ -1,0 +1,6 @@
+name,logo_url,description,is_active,sort_order
+"3M ESPE","","3M ESPE dental products manufacturer",true,1
+"Colgate","","Colgate-Palmolive oral care products",true,2
+"Dentsply","","Dentsply Sirona dental products",true,3
+"Kavo","","Kavo dental equipment and instruments",true,4
+"GC America","","GC America dental materials",true,5
