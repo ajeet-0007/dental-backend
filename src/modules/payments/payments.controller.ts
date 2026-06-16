@@ -15,6 +15,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from "@nestjs/swagger";
 import { PaymentsService } from "./payments.service";
 import { CreatePaymentDto, CreatePaymentSessionDto } from "./dto/payment.dto";
 import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
+import { VerifiedOnlyGuard } from "../../common/guards/verified-only.guard";
 import { RolesGuard } from "../../common/guards/roles.guard";
 import { Roles } from "../../common/decorators/roles.decorator";
 import { UserRole } from "../../database/entities";
@@ -26,7 +27,7 @@ export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
   @Post("create-checkout-session")
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, VerifiedOnlyGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: "Create Stripe checkout session" })
   async createCheckoutSession(

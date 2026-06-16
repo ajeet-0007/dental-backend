@@ -64,6 +64,31 @@ export class User {
   @Column({ default: false })
   isSocialLogin: boolean;
 
+  // Professional Verification Fields
+  @Column({ nullable: true })
+  dentalRegistrationId: string;
+
+  @Column({ nullable: true })
+  stateDentalCouncil: string;
+
+  @Column({ default: false })
+  isProfessionalVerified: boolean;
+
+  @Column({ nullable: true })
+  professionalVerifiedAt: Date;
+
+  @Column({ nullable: true })
+  verificationMethod: string;
+
+  @Column({ default: 0 })
+  verificationAttempts: number;
+
+  @Column({ nullable: true })
+  verificationLastAttemptAt: Date;
+
+  @Column({ nullable: true, type: 'varchar' })
+  verificationError: string | null;
+
   @OneToMany(() => Address, (address) => address.user)
   addresses: Address[];
 
