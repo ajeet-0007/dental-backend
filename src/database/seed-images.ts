@@ -11,9 +11,7 @@ const dataSource = new DataSource({
 });
 
 async function updateImages() {
-  console.log("Connecting to database...");
   await dataSource.initialize();
-  console.log("Connected!");
 
   // Update departments with sample images
   const departmentImages = [
@@ -29,13 +27,11 @@ async function updateImages() {
     { id: 10, name: "Radiology", image: "https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=400&h=300&fit=crop" },
   ];
 
-  console.log("\nUpdating departments...");
   for (const dept of departmentImages) {
     await dataSource.query(
       "UPDATE departments SET image = ? WHERE id = ?",
       [dept.image, dept.id]
     );
-    console.log(`  Updated ${dept.name}`);
   }
 
   // Update brands with sample logos
@@ -62,16 +58,13 @@ async function updateImages() {
     { id: 20, name: "Hu-Friedy", logo: "https://placehold.co/200x100/003366/ffffff?text=HU-FRIEDY" },
   ];
 
-  console.log("\nUpdating brands...");
   for (const brand of brandLogos) {
     await dataSource.query(
       "UPDATE brands SET logo = ? WHERE id = ?",
       [brand.logo, brand.id]
     );
-    console.log(`  Updated ${brand.name}`);
   }
 
-  console.log("\nDone! Images updated for all departments and brands.");
   
   await dataSource.destroy();
 }

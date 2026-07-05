@@ -251,9 +251,7 @@ export class AdminShippingService {
   }
 
   async bulkCancelShipments(shipmentIds: string[]) {
-    console.log('[AdminShipping] bulkCancelShipments called with IDs:', shipmentIds);
     const shipments = await this.shipmentRepository.findByIds(shipmentIds);
-    console.log('[AdminShipping] Found shipments:', shipments.length, shipments.map(s => s.id));
 
     const results = [];
     for (const shipment of shipments) {
@@ -274,14 +272,12 @@ export class AdminShippingService {
   }
 
   async cancelByShipRocketId(shippingRocketId: string) {
-    console.log('[AdminShipping] cancelByShipRocketId called with ID:', shippingRocketId);
     
     const shipment = await this.shipmentRepository.findOne({
       where: { shippingRocketId },
     });
 
     if (!shipment) {
-      console.log('[AdminShipping] Shipment not found with shippingRocketId:', shippingRocketId);
       throw new HttpException('Shipment not found', HttpStatus.NOT_FOUND);
     }
 
@@ -297,7 +293,6 @@ export class AdminShippingService {
       
       // If order doesn't exist in ShipRocket (already cancelled/deleted), just update local status
       if (errorMessage.includes('Order Id does not exist') || error?.response?.status === 400) {
-        console.log(`[AdminShipping] ShipRocket order ${shippingRocketId} not found - updating local status only`);
       } else {
         // Re-throw other errors
         throw error;
@@ -312,7 +307,6 @@ export class AdminShippingService {
   }
 
   async bulkCancelByShipRocketIds(shippingRocketIds: string[]) {
-    console.log('[AdminShipping] bulkCancelByShipRocketIds called with IDs:', shippingRocketIds);
     
     const results = [];
     for (const srId of shippingRocketIds) {
@@ -337,7 +331,6 @@ export class AdminShippingService {
         
         // If order doesn't exist, just mark as cancelled locally
         if (!errorMessage.includes('Order Id does not exist') && error?.response?.status !== 400) {
-          console.log(`[AdminShipping] Error cancelling ${srId}: ${errorMessage}`);
         }
       }
 

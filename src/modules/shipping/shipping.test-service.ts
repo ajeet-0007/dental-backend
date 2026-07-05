@@ -32,16 +32,12 @@ export class ShippingRocketTestService {
     this.testResults = [];
 
     this.logger.log('Starting ShippingRocket API Tests...');
-    console.log('\n========================================');
-    console.log('SHIPPINGROCKET API TEST SUITE');
-    console.log('========================================\n');
 
     // Test 1: Authentication
     await this.testAuthentication();
 
     if (!this.bearerToken) {
       this.logger.error('Authentication failed, skipping remaining tests');
-      console.log('\n⚠️  Cannot proceed without authentication. Check credentials.\n');
       return this.testResults;
     }
 
@@ -71,8 +67,6 @@ export class ShippingRocketTestService {
     const testName = 'Authentication';
 
     try {
-      console.log('🔐 Test 1: Authentication');
-      console.log(`   Email: ${this.apiEmail}`);
 
       const response = await axios.post(
         `${this.apiUrl}/v1/auth/login`,
@@ -100,8 +94,6 @@ export class ShippingRocketTestService {
           },
         });
 
-        console.log('   ✓ PASS: Authentication successful');
-        console.log(`   Token: ${(this.bearerToken || '').substring(0, 20)}...`);
       } else {
         throw new Error('Invalid response format: ' + JSON.stringify(response.data));
       }
@@ -117,11 +109,9 @@ export class ShippingRocketTestService {
         },
       });
 
-      console.log('   ✗ FAIL: ' + (error.message || 'Authentication failed'));
       this.logger.error('Authentication test failed:', error.message);
     }
 
-    console.log();
   }
 
   /**
@@ -150,11 +140,9 @@ export class ShippingRocketTestService {
     ];
 
     try {
-      console.log('📦 Test 2: Rate Calculation (Valid Pincodes)');
 
       for (const testCase of testCases) {
         try {
-          console.log(`   Testing: ${testCase.name}`);
 
           const response = await axios.post(
             `${this.apiUrl}/shipments/rates/calculate`,
@@ -178,12 +166,9 @@ export class ShippingRocketTestService {
 
           if (response.data.status === 'success') {
             const couriers = response.data.data.available_couriers || [];
-            console.log(`   ✓ ${couriers.length} couriers available`);
           } else {
-            console.log(`   ✗ Unexpected response: ${response.data.status}`);
           }
         } catch (innerError) {
-          console.log(`   ✗ Error: ${innerError.message}`);
         }
       }
 
@@ -194,7 +179,6 @@ export class ShippingRocketTestService {
         duration: Date.now() - startTime,
       });
 
-      console.log('   ✓ PASS: Rate calculation successful');
     } catch (error) {
       this.testResults.push({
         testName,
@@ -204,11 +188,9 @@ export class ShippingRocketTestService {
         details: error.response?.data || error.message,
       });
 
-      console.log('   ✗ FAIL: ' + (error.message || 'Rate calculation failed'));
       this.logger.error('Rate calculation test failed:', error.message);
     }
 
-    console.log();
   }
 
   /**
@@ -219,8 +201,6 @@ export class ShippingRocketTestService {
     const testName = 'Rate Calculation (Invalid Pincode - Error Handling)';
 
     try {
-      console.log('⚠️  Test 3: Rate Calculation (Invalid Pincode - Error Handling)');
-      console.log('   Testing with pincode: 999999 (Non-existent)');
 
       let responseStatus = 'unknown';
 
@@ -259,10 +239,7 @@ export class ShippingRocketTestService {
             },
           });
 
-          console.log('   ✓ PASS: Invalid pincode correctly handled');
-          console.log(`   Response: ${response.data.message}`);
         } else {
-          console.log('   ✗ FAIL: Expected error but got success');
         }
       } catch (axiosError) {
         if (axiosError.response?.status === 400 || axiosError.response?.status === 422) {
@@ -277,8 +254,6 @@ export class ShippingRocketTestService {
             },
           });
 
-          console.log('   ✓ PASS: Invalid pincode correctly handled');
-          console.log(`   Error: ${axiosError.response?.data?.message || axiosError.message}`);
         } else {
           throw axiosError;
         }
@@ -292,11 +267,9 @@ export class ShippingRocketTestService {
         details: error.response?.data || error.message,
       });
 
-      console.log('   ✗ FAIL: ' + (error.message || 'Error handling test failed'));
       this.logger.error('Invalid pincode test failed:', error.message);
     }
 
-    console.log();
   }
 
   /**
@@ -307,7 +280,6 @@ export class ShippingRocketTestService {
     const testName = 'Get Available Couriers';
 
     try {
-      console.log('🚚 Test 4: Get Available Couriers');
 
       const response = await axios.get(`${this.apiUrl}/couriers/list`, {
         headers: {
@@ -331,12 +303,9 @@ export class ShippingRocketTestService {
           },
         });
 
-        console.log(`   ✓ PASS: ${couriers.length} couriers available`);
         couriers.slice(0, 3).forEach((courier: any) => {
-          console.log(`   - ${courier.name} (ID: ${courier.id})`);
         });
       } else {
-        console.log('   ✗ FAIL: Unexpected response format');
       }
     } catch (error) {
       this.testResults.push({
@@ -346,10 +315,8 @@ export class ShippingRocketTestService {
         duration: Date.now() - startTime,
       });
 
-      console.log('   ⊘ SKIP: ' + (error.message || 'Endpoint may not be available'));
     }
 
-    console.log();
   }
 
   /**
@@ -360,8 +327,6 @@ export class ShippingRocketTestService {
     const testName = 'Shipment Creation';
 
     try {
-      console.log('📮 Test 5: Shipment Creation');
-      console.log('   Creating test shipment...');
 
       const testOrderNumber = `TEST-${Date.now()}`;
       const testEmail = 'test@example.com';
@@ -393,7 +358,6 @@ export class ShippingRocketTestService {
 
       const selectedCourier = rateResponse.data.data.available_couriers[0];
 
-      console.log(`   Selected courier: ${selectedCourier.name}`);
 
       const shipmentPayload = {
         order_id: testOrderNumber,
@@ -455,13 +419,7 @@ export class ShippingRocketTestService {
             },
           });
 
-          console.log('   ✓ PASS: Shipment created successfully');
-          console.log(`   Shipment ID: ${shipmentId}`);
-          console.log(`   Tracking Number: ${trackingNumber}`);
-          console.log(`   Order Number: ${testOrderNumber}`);
         } else {
-          console.log(`   ✗ FAIL: Unexpected response status: ${response.data.status}`);
-          console.log(`   Message: ${response.data.message}`);
 
           this.testResults.push({
             testName,
@@ -480,7 +438,6 @@ export class ShippingRocketTestService {
             details: shipmentError.response?.data,
           });
 
-          console.log('   ⊘ SKIP: Insufficient balance (ShippingRocket account needs balance)');
         } else {
           throw shipmentError;
         }
@@ -494,52 +451,33 @@ export class ShippingRocketTestService {
         details: error.response?.data || error.message,
       });
 
-      console.log('   ✗ FAIL: ' + (error.message || 'Shipment creation test failed'));
       this.logger.error('Shipment creation test failed:', error.message);
     }
 
-    console.log();
   }
 
   /**
    * Print test summary
    */
   private printTestSummary(): void {
-    console.log('========================================');
-    console.log('TEST SUMMARY');
-    console.log('========================================\n');
 
     const passed = this.testResults.filter((r) => r.status === 'PASS').length;
     const failed = this.testResults.filter((r) => r.status === 'FAIL').length;
     const skipped = this.testResults.filter((r) => r.status === 'SKIP').length;
     const total = this.testResults.length;
 
-    console.log(`Tests Run: ${total}`);
-    console.log(`✓ Passed: ${passed}`);
-    console.log(`✗ Failed: ${failed}`);
-    console.log(`⊘ Skipped: ${skipped}`);
 
     if (failed === 0) {
-      console.log('\n✓ All tests passed!\n');
     } else {
-      console.log(`\n✗ ${failed} test(s) failed\n`);
     }
 
-    console.log('DETAILED RESULTS:');
-    console.log('----------------------------------------\n');
 
     this.testResults.forEach((result, index) => {
       const icon = result.status === 'PASS' ? '✓' : result.status === 'FAIL' ? '✗' : '⊘';
-      console.log(`${index + 1}. ${icon} ${result.testName}`);
-      console.log(`   Status: ${result.status}`);
-      console.log(`   Message: ${result.message}`);
-      console.log(`   Duration: ${result.duration}ms`);
 
       if (result.details) {
-        console.log(`   Details: ${JSON.stringify(result.details, null, 4)}`);
       }
 
-      console.log();
     });
   }
 

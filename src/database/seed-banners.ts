@@ -59,7 +59,6 @@ const sampleBanners = [
 async function seedBanners() {
   try {
     await dataSource.initialize();
-    console.log("Database connected");
 
     // Create table if it doesn't exist
     await dataSource.query(`
@@ -77,22 +76,18 @@ async function seedBanners() {
         updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
       )
     `);
-    console.log("Ensured banners table exists");
 
     const bannerRepo = dataSource.getRepository(Banner);
 
     // Clear existing banners
     await bannerRepo.clear();
-    console.log("Cleared existing banners");
 
     // Insert sample banners
     for (const bannerData of sampleBanners) {
       const banner = bannerRepo.create(bannerData);
       await bannerRepo.save(banner);
-      console.log(`Created banner: ${bannerData.title}`);
     }
 
-    console.log(`\n✅ Successfully seeded ${sampleBanners.length} banners`);
     await dataSource.destroy();
   } catch (error) {
     console.error("Error seeding banners:", error);

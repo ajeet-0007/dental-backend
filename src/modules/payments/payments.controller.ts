@@ -53,7 +53,6 @@ export class PaymentsController {
       console.error("Payload:", payload);
       throw new Error("No payload received");
     }
-    console.log("Webhook received, payload size:", payload.length);
     return this.paymentsService.handleWebhook(payload, signature);
   }
 

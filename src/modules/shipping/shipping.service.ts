@@ -76,7 +76,6 @@ export class ShippingService {
       orderWithAddress,
     );
 
-    console.log('ShippingRocket create shipment response:', srResponse);
 
     // Auto-generate label and manifest
     let labelUrl = srResponse.labelUrl;
@@ -86,10 +85,8 @@ export class ShippingService {
       if (srResponse.shippingRocketId) {
         await this.shippingRocketService.generateLabel(srResponse.shippingRocketId);
         await this.shippingRocketService.generateManifest(srResponse.shippingRocketId);
-        console.log(`Label and manifest generated for shipment: ${srResponse.shippingRocketId}`);
       }
     } catch (error) {
-      console.log(`Failed to auto-generate label/manifest: ${error.message}`);
     }
 
     // Create Shipment entity

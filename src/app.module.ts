@@ -29,6 +29,7 @@ import { AiAssistantModule } from "./modules/ai-assistant/ai-assistant.module";
 import { BulkUploadModule } from "./modules/bulk-upload/bulk-upload.module";
 import { EntityBulkUploadModule } from "./modules/entity-bulk-upload/entity-bulk-upload.module";
 import { ProfessionalVerificationModule } from "./modules/professional-verification/professional-verification.module";
+import { LoggerModule } from "./modules/logger/logger.module";
 
 @Module({
   imports: [
@@ -87,6 +88,7 @@ import { ProfessionalVerificationModule } from "./modules/professional-verificat
     BulkUploadModule,
     EntityBulkUploadModule,
     ProfessionalVerificationModule,
+    LoggerModule,
   ],
 })
 export class AppModule {}

@@ -332,7 +332,6 @@ export class ProductsService {
     if (productIds.length > 0) {
       const productIdsAsStrings = productIds.map((id) => String(id));
 
-      console.log('Product IDs:', productIdsAsStrings);
 
       const [variants, inventories] = await Promise.all([
         this.productVariantRepository.find({
@@ -344,7 +343,6 @@ export class ProductsService {
           .getMany(),
       ]);
 
-      console.log('Found inventories:', inventories.length, inventories.map(i => i.productId));
 
       const variantsMap = new Map<string, ProductVariant[]>();
       variants.forEach((v) => {
@@ -942,24 +940,10 @@ export class ProductsService {
         (sum: number, inv: any) => sum + (inv.quantity - inv.reservedQuantity),
         0,
       );
-      //console.log(`  ${p.name}: hasVariants=${p.hasVariants}, variantCount=${p.variants?.length}, inventoryCount=${p.inventories?.length}, totalStock=${totalStock}`);
       
       // Debug specific products that might be showing out of stock
       if (p.name && p.name.toLowerCase().includes('oro')) {
-        console.log(`  [DEBUG] ORO PRODUCT DETAILS:`, {
-          id: p.id,
-          name: p.name,
-          hasVariants: p.hasVariants,
-          variants: p.variants?.map(v => ({ id: v.id, name: v.name })),
-          inventories: p.inventories?.map(inv => ({
-            id: inv.id,
-            productId: inv.productId,
-            productVariantId: inv.productVariantId,
-            quantity: inv.quantity,
-            reservedQuantity: inv.reservedQuantity,
-            trackInventory: inv.trackInventory
-          }))
-        });
+        // TODO: debug ORO product details
       }
     });
 
@@ -1087,7 +1071,6 @@ export class ProductsService {
 
   async getRecommendedByCategories(categorySlugs: string[], excludeProductIds: number[], limit = 8) {
     try {
-      console.log('[getRecommendedByCategories] Input:', { categorySlugs, excludeProductIds, limit });
       
       const queryBuilder = this.productRepository
         .createQueryBuilder("product")
@@ -1109,7 +1092,6 @@ export class ProductsService {
         .take(limit);
 
       let products = await queryBuilder.getMany();
-      console.log('[getRecommendedByCategories] Products found:', products.length);
 
       if (products.length === 0) {
         products = await this.getFeaturedProducts(limit);

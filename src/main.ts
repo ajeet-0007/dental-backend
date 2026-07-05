@@ -2,10 +2,13 @@ import { NestFactory } from "@nestjs/core";
 import { ValidationPipe } from "@nestjs/common";
 import { SwaggerModule, DocumentBuilder } from "@nestjs/swagger";
 import * as express from "express";
+import { Request, Response, NextFunction } from "express";
+import * as uuid from "uuid";
 import { AppModule } from "./app.module";
+import { AllExceptionsFilter } from "./modules/logger/filters/all-exceptions.filter";
+import { LogService } from "./modules/logger/logger.service";
 
 async function bootstrap() {
-  console.log("Starting Dentalkart Backend...");
 
   const app = await NestFactory.create(AppModule, {
     rawBody: true,
@@ -15,6 +18,12 @@ async function bootstrap() {
   app.use("/api/payments/webhook", express.raw({ type: "application/json" }));
 
   app.use(express.json());
+
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    (req as any).correlationId = (req.headers['x-correlation-id'] as string) || uuid.v4();
+    res.setHeader('x-correlation-id', (req as any).correlationId);
+    next();
+  });
 
   app.enableCors({
     origin: true,
@@ -35,6 +44,9 @@ async function bootstrap() {
 
   app.setGlobalPrefix("api");
 
+  const logService = app.get(LogService);
+  app.useGlobalFilters(new AllExceptionsFilter(logService));
+
   const config = new DocumentBuilder()
     .setTitle("Dentalkart API")
     .setDescription("Dentalkart E-commerce API")
@@ -48,9 +60,6 @@ async function bootstrap() {
   const host = process.env.HOST || "0.0.0.0";
 
   await app.listen(port, host);
-  console.log(`✅ Dentalkart Backend started successfully!`);
-  console.log(`🌐 Server running on http://${host}:${port}`);
-  console.log(`📚 API Docs available at http://${host}:${port}/api/docs`);
 }
 bootstrap().catch((err) => {
   console.error("❌ Failed to start server:", err);

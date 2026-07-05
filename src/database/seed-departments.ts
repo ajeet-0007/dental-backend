@@ -99,7 +99,6 @@ const departments = [
 async function seedDepartments() {
   try {
     await dataSource.initialize();
-    console.log("Database connected");
 
     // Create table if it doesn't exist
     await dataSource.query(`
@@ -115,7 +114,6 @@ async function seedDepartments() {
         updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
       )
     `);
-    console.log("Ensured departments table exists");
 
     // Create join tables
     await dataSource.query(`
@@ -137,7 +135,6 @@ async function seedDepartments() {
         FOREIGN KEY (departmentId) REFERENCES departments(id) ON DELETE CASCADE
       )
     `);
-    console.log("Ensured join tables exist");
 
     const departmentRepo = dataSource.getRepository(Department);
 
@@ -147,16 +144,13 @@ async function seedDepartments() {
     await dataSource.query("TRUNCATE TABLE category_departments");
     await dataSource.query("TRUNCATE TABLE departments");
     await dataSource.query("SET FOREIGN_KEY_CHECKS = 1");
-    console.log("Cleared existing departments");
 
     // Insert departments
     for (const deptData of departments) {
       const dept = departmentRepo.create(deptData);
       await departmentRepo.save(dept);
-      console.log(`Created department: ${deptData.name}`);
     }
 
-    console.log(`\n✅ Successfully seeded ${departments.length} departments`);
     await dataSource.destroy();
   } catch (error) {
     console.error("Error seeding departments:", error);

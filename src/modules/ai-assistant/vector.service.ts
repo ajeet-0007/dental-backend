@@ -53,7 +53,6 @@ export class VectorService {
 
     const { error } = await this.supabase.rpc('exec', { query: sql });
     if (error) {
-      console.log('Table creation response:', error);
     }
   }
 
@@ -115,11 +114,9 @@ export class VectorService {
     });
 
     if (error || !data || data.length === 0) {
-      console.log('[Vector] RPC search failed, trying fallback:', error);
       return this.fallbackSearch(query, topK);
     }
 
-    console.log('[Vector] SQL search results:', data.length);
 
     return data.map((item: any) => ({
       productId: item.product_id,

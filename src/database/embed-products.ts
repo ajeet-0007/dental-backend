@@ -26,7 +26,6 @@ async function embedAll() {
   const supabase = createClient(supabaseUrl!, supabaseKey!);
   const tableName = 'product_embeddings';
 
-  console.log('Connecting to MySQL...');
   const conn = await mysql.createConnection(mysqlConfig);
 
   const embed = async (text: string): Promise<number[]> => {
@@ -43,7 +42,6 @@ async function embedAll() {
     });
     const embedding = res.data.data[0]?.embedding || [];
     if (embedding.length !== 1536) {
-      console.log(`  WARNING: Embedding dimension is ${embedding.length}, expected 1536`);
     }
     return embedding;
     return embedding;
@@ -56,7 +54,6 @@ async function embedAll() {
     metadata: any,
   ) => {
     if (embedding.length === 0) {
-      console.log(`  ERROR: Empty embedding for id ${id}`);
       return;
     }
     
@@ -72,13 +69,11 @@ async function embedAll() {
     );
     
     if (error) {
-      console.log(`  ERROR upserting id ${id}:`, error.message);
     }
     return { data, error };
   };
 
   // 1. EMBED PRODUCTS with full info
-  console.log('\n=== EMBEDDING PRODUCTS ===');
   const [products] = await conn.execute(`
     SELECT p.id, p.name, p.slug, p.sellingPrice, p.brand,
            p.shortDescription, p.description,
@@ -89,7 +84,6 @@ async function embedAll() {
   `);
 
   const productArray = products as any[];
-  console.log(`Found ${productArray.length} products`);
 
   for (let i = 0; i < productArray.length; i++) {
     const p = productArray[i];
@@ -111,12 +105,9 @@ async function embedAll() {
       type: 'product',
     });
 
-    if ((i + 1) % 20 === 0) console.log(`  Progress: ${i + 1}/${productArray.length}`);
   }
-  console.log(`✓ ${productArray.length} products embedded`);
 
   // 2. EMBED PRODUCT VARIANTS
-  console.log('\n=== EMBEDDING VARIANTS ===');
   const [variants] = await conn.execute(`
     SELECT pv.id, pv.name, pv.sku, pv.sellingPrice,
            pv.weight, pv.weightUnit, pv.color, pv.size, pv.flavor, pv.packQuantity,
@@ -128,7 +119,6 @@ async function embedAll() {
   `);
 
   const variantArray = variants as any[];
-  console.log(`Found ${variantArray.length} variants`);
 
   for (let i = 0; i < variantArray.length; i++) {
     const v = variantArray[i];
@@ -163,12 +153,9 @@ async function embedAll() {
       sku: v.sku,
     });
 
-    if ((i + 1) % 10 === 0) console.log(`  Progress: ${i + 1}/${variantArray.length}`);
   }
-  console.log(`✓ ${variantArray.length} variants embedded`);
 
   // 3. EMBED BRANDS
-  console.log('\n=== EMBEDDING BRANDS ===');
   const [brands] = await conn.execute(`
     SELECT b.id, b.name, b.description,
            COUNT(p.id) as productCount
@@ -179,7 +166,6 @@ async function embedAll() {
   `);
 
   const brandArray = brands as any[];
-  console.log(`Found ${brandArray.length} brands`);
 
   for (let i = 0; i < brandArray.length; i++) {
     const b = brandArray[i];
@@ -200,12 +186,9 @@ async function embedAll() {
       slug: b.name.toLowerCase().replace(/\s+/g, '-'),
     });
 
-    console.log(`  ✓ ${b.name}`);
   }
-  console.log(`✓ ${brandArray.length} brands embedded`);
 
   // 4. EMBED CATEGORIES
-  console.log('\n=== EMBEDDING CATEGORIES ===');
   const [categories] = await conn.execute(`
     SELECT c.id, c.name, c.description,
            COUNT(p.id) as productCount
@@ -216,7 +199,6 @@ async function embedAll() {
   `);
 
   const categoryArray = categories as any[];
-  console.log(`Found ${categoryArray.length} categories`);
 
   for (const cat of categoryArray) {
     const content = [
@@ -236,12 +218,9 @@ async function embedAll() {
       slug: cat.name.toLowerCase().replace(/\s+/g, '-'),
     });
 
-    console.log(`  ✓ ${cat.name}`);
   }
-  console.log(`✓ ${categoryArray.length} categories embedded`);
 
   // 5. EMBED DEPARTMENTS
-  console.log('\n=== EMBEDDING DEPARTMENTS ===');
   const [departments] = await conn.execute(`
     SELECT d.id, d.name, d.description
     FROM departments d
@@ -249,7 +228,6 @@ async function embedAll() {
   `);
 
   const deptArray = departments as any[];
-  console.log(`Found ${deptArray.length} departments`);
 
   for (const d of deptArray) {
     const content = [
@@ -267,21 +245,13 @@ async function embedAll() {
       slug: d.name.toLowerCase().replace(/\s+/g, '-'),
     });
 
-    console.log(`  ✓ ${d.name}`);
   }
-  console.log(`✓ ${deptArray.length} departments embedded`);
 
   // Summary
   const { count } = await supabase
     .from(tableName)
     .select('*', { count: 'exact', head: true });
 
-  console.log(`\n✅ COMPLETE! Total embeddings: ${count}`);
-  console.log(`  - ${productArray.length} products`);
-  console.log(`  - ${variantArray.length} variants`);
-  console.log(`  - ${brandArray.length} brands`);
-  console.log(`  - ${categoryArray.length} categories`);
-  console.log(`  - ${deptArray.length} departments`);
 
   await conn.end();
   await app.close();

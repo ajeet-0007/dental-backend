@@ -41,7 +41,6 @@ const brands = [
 async function seedBrands() {
   try {
     await dataSource.initialize();
-    console.log("Database connected");
 
     // Create table if it doesn't exist
     await dataSource.query(`
@@ -57,17 +56,14 @@ async function seedBrands() {
         updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
       )
     `);
-    console.log("Ensured brands table exists");
 
     // Add brandId column to products if it doesn't exist
     try {
       await dataSource.query(`
         ALTER TABLE products ADD COLUMN brandId INT
       `);
-      console.log("Added brandId column to products");
     } catch (err: any) {
       if (err.code !== 'ER_DUP_FIELDNAME') {
-        console.log("brandId column may already exist or other error:", err.message);
       }
     }
 
@@ -75,16 +71,13 @@ async function seedBrands() {
 
     // Clear existing brands
     await brandRepo.clear();
-    console.log("Cleared existing brands");
 
     // Insert brands
     for (const brandData of brands) {
       const brand = brandRepo.create(brandData);
       await brandRepo.save(brand);
-      console.log(`Created brand: ${brandData.name}`);
     }
 
-    console.log(`\n✅ Successfully seeded ${brands.length} brands`);
     await dataSource.destroy();
   } catch (error) {
     console.error("Error seeding brands:", error);

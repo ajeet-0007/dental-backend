@@ -13,7 +13,6 @@ export class ChangeReviewProductIdToInt1709300000000 implements MigrationInterfa
       AND COLUMN_NAME = 'productId'
     `);
     
-    console.log('Current productId column:', columns);
     
     // Change from varchar to int
     await queryRunner.query(`
@@ -21,7 +20,6 @@ export class ChangeReviewProductIdToInt1709300000000 implements MigrationInterfa
       MODIFY \`productId\` int NOT NULL
     `);
     
-    console.log('Changed productId to int');
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

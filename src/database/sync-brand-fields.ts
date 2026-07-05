@@ -11,9 +11,7 @@ const dataSource = new DataSource({
 });
 
 async function syncBrandFields() {
-  console.log("Connecting to database...");
   await dataSource.initialize();
-  console.log("Connected!");
 
   const result = await dataSource.query(`
     UPDATE products p
@@ -22,10 +20,8 @@ async function syncBrandFields() {
     WHERE p.brand IS NULL AND p.brandId IS NOT NULL
   `);
 
-  console.log(`Updated ${result.affectedRows || 0} products with brand names from brandId`);
 
   await dataSource.destroy();
-  console.log("Done!");
 }
 
 syncBrandFields().catch((err) => {

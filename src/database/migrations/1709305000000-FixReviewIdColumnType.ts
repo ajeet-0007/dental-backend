@@ -13,7 +13,6 @@ export class FixReviewIdColumnType1709305000000 implements MigrationInterface {
       AND COLUMN_NAME = 'id'
     `);
     
-    console.log('Current id column:', columns);
     
     // Change from INT to VARCHAR(36) for UUID
     await queryRunner.query(`
@@ -21,7 +20,6 @@ export class FixReviewIdColumnType1709305000000 implements MigrationInterface {
       MODIFY \`id\` VARCHAR(36) NOT NULL
     `);
     
-    console.log('Changed id to VARCHAR(36) for UUID');
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

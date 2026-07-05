@@ -11,17 +11,13 @@ const dataSource = new DataSource({
 });
 
 async function seedProductAssociations() {
-  console.log("Connecting to database...");
   await dataSource.initialize();
-  console.log("Connected!");
 
   // Get all brands
   const brands: any[] = await dataSource.query("SELECT * FROM brands");
-  console.log(`Found ${brands.length} brands`);
 
   // Get all departments
   const departments: any[] = await dataSource.query("SELECT * FROM departments");
-  console.log(`Found ${departments.length} departments`);
 
   // Get all products with their categories
   const products: any[] = await dataSource.query(`
@@ -29,7 +25,6 @@ async function seedProductAssociations() {
     FROM products p 
     LEFT JOIN categories c ON p.categoryId = c.id
   `);
-  console.log(`Found ${products.length} products`);
 
   let brandUpdated = 0;
   let deptUpdated = 0;
@@ -63,7 +58,6 @@ async function seedProductAssociations() {
           );
           brandChanged = true;
           brandUpdated++;
-          console.log(`  Brand: '${brand.name}' -> '${product.name.substring(0, 40)}'`);
           break;
         }
       }
@@ -117,7 +111,6 @@ async function seedProductAssociations() {
             [product.id, assignedDeptId]
           );
           const dept = departments.find((d) => d.id === assignedDeptId);
-          console.log(`  Dept: '${dept?.name}' -> '${product.name.substring(0, 40)}'`);
           deptChanged = true;
           deptUpdated++;
         } catch (err: any) {
@@ -129,12 +122,8 @@ async function seedProductAssociations() {
     }
   }
 
-  console.log(`\nSummary:`);
-  console.log(`  Products updated with brands: ${brandUpdated}`);
-  console.log(`  Products associated with departments: ${deptUpdated}`);
   
   await dataSource.destroy();
-  console.log("Done!");
 }
 
 seedProductAssociations().catch((err) => {

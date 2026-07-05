@@ -75,7 +75,6 @@ export class PaymentsService {
       used: false,
     });
     const savedIntent = await this.paymentIntentRepository.save(paymentIntent);
-    console.log(`[PaymentIntent] Created: ${savedIntent.id}`);
 
     // Store only paymentIntentId and userId in Stripe metadata (well under 500 chars)
     const session = await this.stripe.checkout.sessions.create({
@@ -91,7 +90,6 @@ export class PaymentsService {
     });
 
     let checkoutUrl = session.url || "";
-    console.log("[DEBUG] Original Stripe URL:", checkoutUrl);
 
     if (checkoutUrl.includes("{CHECKOUT_SESSION_ID}")) {
       checkoutUrl = checkoutUrl.replace("{CHECKOUT_SESSION_ID}", session.id);
@@ -102,7 +100,6 @@ export class PaymentsService {
       checkoutUrl = `${checkoutUrl}${separator}session_id=${session.id}`;
     }
 
-    console.log("[DEBUG] Final redirect URL:", checkoutUrl);
 
     return {
       sessionId: session.id,
@@ -114,14 +111,11 @@ export class PaymentsService {
     const webhookSecret = this.configService.get("STRIPE_WEBHOOK_SECRET");
 
     if (!webhookSecret) {
-      console.log("Stripe webhook secret not configured - skipping webhook");
       return;
     }
 
     let event: Stripe.Event;
 
-    console.log(`handleWebhook - payload length: ${payload?.length}`);
-    console.log(`handleWebhook - signature: ${signature?.substring(0, 30)}...`);
 
     try {
       event = this.stripe.webhooks.constructEvent(
@@ -129,7 +123,6 @@ export class PaymentsService {
         signature,
         webhookSecret,
       );
-      console.log(`handleWebhook - Event type: ${event.type}`);
     } catch (err) {
       console.error("=== WEBHOOK SIGNATURE VERIFICATION FAILED ===");
       console.error("Error:", err);
@@ -145,7 +138,6 @@ export class PaymentsService {
 
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
-      console.log(`==> Received checkout.session.completed event <==`);
       try {
         await this.processSuccessfulPayment(session);
       } catch (error) {
@@ -167,11 +159,6 @@ export class PaymentsService {
     const userId = session.metadata?.userId;
     const paymentIntentId = session.metadata?.paymentIntentId;
 
-    console.log(`Processing checkout.session.completed for session: ${session.id}`);
-    console.log(`  - orderId from metadata: ${orderId}`);
-    console.log(`  - userId from metadata: ${userId}`);
-    console.log(`  - paymentIntentId from metadata: ${paymentIntentId}`);
-    console.log(`  - payment_intent: ${session.payment_intent}`);
 
     // New flow: order data in PaymentIntent table, create order now
     if (paymentIntentId) {
@@ -187,12 +174,10 @@ export class PaymentsService {
         }
 
         if (paymentIntent.used) {
-          console.log(`PaymentIntent already used: ${paymentIntentId}`);
           return;
         }
 
         const orderData = JSON.parse(paymentIntent.orderData);
-        console.log(`  - Creating order from PaymentIntent`);
 
         // Create order items from the items in PaymentIntent
         const orderItems = orderData.items.map((item: any) => ({
@@ -250,7 +235,6 @@ export class PaymentsService {
         });
 
         const savedOrder = await this.orderRepository.save(order);
-        console.log(`  - Order created: ${savedOrder.id}`);
 
         // Save order items
         const orderItemsEntities = orderItems.map((item: any) => ({
@@ -258,7 +242,6 @@ export class PaymentsService {
           orderId: savedOrder.id,
         }));
         await this.orderItemRepository.save(orderItemsEntities);
-        console.log(`  - Order items saved`);
 
         // Create payment record
         const payment = this.paymentRepository.create({
@@ -271,7 +254,6 @@ export class PaymentsService {
           gatewayResponse: JSON.stringify(session),
         });
         await this.paymentRepository.save(payment);
-        console.log(`  - Payment record created with status COMPLETED`);
 
         // Mark PaymentIntent as used
         paymentIntent.used = true;
@@ -281,7 +263,6 @@ export class PaymentsService {
         for (const item of orderItems) {
           await this.inventoryService.reserveStock(item.productId, item.quantity);
         }
-        console.log(`  - Inventory reserved`);
 
         // Create shipment
         try {
@@ -296,7 +277,6 @@ export class PaymentsService {
           console.error(`Failed to create shipment for order ${savedOrder.id}:`, error);
         }
 
-        console.log(`Order ${savedOrder.id} created and confirmed successfully via webhook`);
         return;
       } catch (error) {
         console.error(`Error creating order from PaymentIntent:`, error);
@@ -310,7 +290,6 @@ export class PaymentsService {
 
     // Legacy flow: order already exists (for backward compatibility)
     if (!orderId) {
-      console.log("No orderId in session metadata - returning early");
       return;
     }
 
@@ -318,10 +297,8 @@ export class PaymentsService {
       where: { orderId },
     });
 
-    console.log(`  - Payment record found: ${payment ? 'yes' : 'no'}`);
 
     if (!payment) {
-      console.log(`No payment record for order ${orderId} - returning early`);
       return;
     }
 
@@ -330,22 +307,18 @@ export class PaymentsService {
     payment.gatewayPaymentId = session.id;
     payment.gatewayResponse = JSON.stringify(session);
     await this.paymentRepository.save(payment);
-    console.log(`  - Payment status updated to COMPLETED`);
 
     const order = await this.orderRepository.findOne({
       where: { id: orderId },
       relations: ["items"],
     });
 
-    console.log(`  - Order found: ${order ? 'yes' : 'no'}`);
     if (order) {
-      console.log(`  - Order status: ${order.status}`);
     }
 
     if (order && order.status === OrderStatus.PENDING_PAYMENT) {
       order.status = OrderStatus.CONFIRMED;
       await this.orderRepository.save(order);
-      console.log(`  - Order status updated to CONFIRMED`);
 
       for (const item of order.items) {
         await this.inventoryService.reserveStock(
@@ -353,13 +326,10 @@ export class PaymentsService {
           item.quantity,
         );
       }
-      console.log(`Order ${orderId} confirmed successfully`);
 
       // Auto-create shipment after payment success
       try {
-        console.log(`Calling createShipmentAfterPayment for order ${order.id}...`);
         await this.createShipmentAfterPayment(order);
-        console.log(`Shipment creation completed for order ${order.id}`);
       } catch (error) {
         console.error(`Failed to create shipment for order ${orderId}:`, error);
         if (error instanceof Error) {
@@ -370,21 +340,14 @@ export class PaymentsService {
         // Don't throw - order is already confirmed, shipment can be created manually
       }
     } else {
-      console.log(`Order ${orderId} not pending payment or not found - skipping confirmation`);
     }
   }
 
   private async createShipmentAfterPayment(order: Order): Promise<void> {
-    console.log(`Checking shipment for order ${order.id}:`);
-    console.log(`  - selectedCourier: ${order.selectedCourier}`);
-    console.log(`  - selectedService: ${order.selectedService}`);
-    console.log(`  - shippingAddress: ${order.shippingAddress?.substring(0, 100)}...`);
 
     // Check if shipment already exists for this order
     const shipmentExists = await this.shippingService.shipmentExistsForOrder(order.id);
-    console.log(`  - shipmentExists: ${shipmentExists}`);
     if (shipmentExists) {
-      console.log(`Shipment already exists for order ${order.id} - skipping duplicate creation`);
       return;
     }
 
@@ -402,15 +365,12 @@ export class PaymentsService {
         const match = order.shippingAddress.match(/\b(\d{6})\b/);
         if (match) {
           deliveryPincode = match[1];
-          console.log(`Extracted pincode from plain text: ${deliveryPincode}`);
         } else {
-          console.log(`Failed to parse shipping address for order ${order.id}`);
         }
       }
     }
 
     if (!deliveryPincode) {
-      console.log(`Order ${order.id} missing delivery pincode - cannot create shipment`);
       return;
     }
 
@@ -421,7 +381,6 @@ export class PaymentsService {
     });
 
     if (!fullOrder || !fullOrder.user) {
-      console.log(`Order ${order.id} missing customer details - cannot create shipment`);
       return;
     }
 
@@ -463,7 +422,6 @@ export class PaymentsService {
         height: totalHeight,
       });
     } catch (error) {
-      console.log(`Failed to calculate rates for order ${order.id}:`, error.message);
     }
 
     let selectedCourier = 'Standard';
@@ -477,9 +435,7 @@ export class PaymentsService {
       selectedCourier = cheapest.name;
       selectedService = cheapest.serviceType;
       shippingRate = cheapest.rate;
-      console.log(`Selected cheapest courier for order ${order.id}: ${selectedCourier} (${selectedService}) - ₹${shippingRate}`);
     } else {
-      console.log(`Using default shipping rate for order ${order.id}: ₹${shippingRate}`);
     }
 
     // Create shipment DTO
@@ -495,7 +451,6 @@ export class PaymentsService {
       isCOD: false, // Card payment is not COD
     };
 
-    console.log(`Shipment dimensions for order ${order.id}: weight=${totalWeight}kg, ${totalLength}x${totalBreadth}x${totalHeight}cm`);
 
     // Create shipment
     try {
@@ -503,7 +458,6 @@ export class PaymentsService {
         createShipmentDto,
       );
 
-      console.log(`Shipment created for order ${order.id}:`, shipment.id);
 
       // Update order with shipment info
       order.selectedCourier = selectedCourier;
@@ -516,23 +470,19 @@ export class PaymentsService {
       order.inventoryDeducted = true;
       await this.orderRepository.save(order);
 
-      console.log(`Order ${order.id} updated with shipment info`);
     } catch (error) {
-      console.log(`Failed to create shipment for order ${order.id}:`, error.message);
       // Update order with rate but create shipment record failed - will be created manually
       order.selectedCourier = selectedCourier;
       order.selectedService = selectedService;
       order.shippingRate = shippingRate;
       order.shippingAmount = shippingRate;
       await this.orderRepository.save(order);
-      console.log(`Order ${order.id} updated with rate info - shipment can be created manually`);
     }
   }
 
   async verifyAndConfirmPayment(
     sessionId: string,
   ): Promise<{ success: boolean; orderId?: string; error?: string }> {
-    console.log("Verifying session:", sessionId);
 
     // First, check if we already have a payment with this session ID
     const existingPayment = await this.paymentRepository.findOne({
@@ -541,7 +491,6 @@ export class PaymentsService {
     });
 
     if (existingPayment && existingPayment.order) {
-      console.log("Found existing payment for session");
       return { success: true, orderId: existingPayment.order.id };
     }
 
@@ -553,10 +502,8 @@ export class PaymentsService {
 
     try {
       const session = await this.stripe.checkout.sessions.retrieve(sessionId);
-      console.log("Session retrieved:", session.id, "Status:", session.payment_status);
 
       if (session.payment_status === "paid") {
-        console.log("Payment is paid, creating order from PaymentIntent");
 
         const userId = session.metadata?.userId;
         const paymentIntentId = session.metadata?.paymentIntentId;
@@ -634,7 +581,6 @@ export class PaymentsService {
             });
 
             const savedOrder = await this.orderRepository.save(order);
-            console.log(`  - Order created: ${savedOrder.id}`);
 
             // Save order items
             const orderItemsEntities = orderItems.map((item: any) => ({
@@ -677,7 +623,6 @@ export class PaymentsService {
               console.error(`Failed to create shipment for order ${savedOrder.id}:`, error);
             }
 
-            console.log(`Order ${savedOrder.id} created and confirmed via session verification`);
             return { success: true, orderId: savedOrder.id };
           } catch (error) {
             console.error("Error creating order from PaymentIntent:", error);
@@ -688,7 +633,6 @@ export class PaymentsService {
         return { success: true };
       }
 
-      console.log("Payment not completed, status:", session.payment_status);
       return {
         success: false,
         error: `Payment status: ${session.payment_status}`,

@@ -12,7 +12,6 @@ const dataSource = new DataSource({
 
 async function fixInventory() {
   await dataSource.initialize();
-  console.log('Connected to database');
 
   const queryRunner = dataSource.createQueryRunner();
   await queryRunner.connect();
@@ -20,11 +19,9 @@ async function fixInventory() {
   try {
     // Get all products
     const products = await queryRunner.query('SELECT id FROM products');
-    console.log(`Found ${products.length} products`);
 
     // Delete existing inventory
     await queryRunner.query('DELETE FROM inventory');
-    console.log('Deleted existing inventory');
 
     // Create inventory for each product
     for (const prod of products) {
@@ -33,7 +30,6 @@ async function fixInventory() {
         [prod.id, 50 + Math.floor(Math.random() * 100)]
       );
     }
-    console.log('Inventory recreated with correct product IDs');
   } finally {
     await queryRunner.release();
     await dataSource.destroy();

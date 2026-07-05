@@ -48,7 +48,6 @@ Guidelines:
   async chat(userMessage: string, chatHistory: ChatMessage[] = []): Promise<ChatResponse> {
     const relevantProducts = await this.vectorService.search(userMessage, 5);
     
-    console.log('[RAG] Search results:', JSON.stringify(relevantProducts, null, 2));
 
     const context = this.buildContext(relevantProducts);
     const messages = this.buildMessages(userMessage, chatHistory, context);
@@ -69,7 +68,6 @@ Guidelines:
         brand: p.metadata?.brand || 'Unknown',
       }));
       
-      console.log('[RAG] Returning products:', JSON.stringify(products, null, 2));
 
       return {
         message: assistantMessage,

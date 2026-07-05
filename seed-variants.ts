@@ -12,7 +12,6 @@ const dataSource = new DataSource({
 
 async function seedVariants() {
   await dataSource.initialize();
-  console.log('Connected to database');
 
   const queryRunner = dataSource.createQueryRunner();
   await queryRunner.connect();
@@ -89,14 +88,10 @@ async function seedVariants() {
           ]
         );
         variantCount++;
-        console.log(`Created variant: ${variant.name}`);
       } else {
-        console.log(`Variant already exists: ${variant.name}`);
       }
     }
 
-    console.log(`\nCreated ${variantCount} new variants!`);
-    console.log('Seed completed!');
 
   } finally {
     await queryRunner.release();

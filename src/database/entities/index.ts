@@ -21,3 +21,4 @@ export * from './banner.entity';
 export * from './brand.entity';
 export * from './department.entity';
 export * from './news.entity';
+export * from './log.entity';

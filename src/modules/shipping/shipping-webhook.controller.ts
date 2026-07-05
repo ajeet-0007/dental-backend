@@ -31,7 +31,6 @@ export class ShippingWebhookController {
       this.logger.warn('Missing webhook signature - allowing for testing');
     }
 
-    console.log('Webhook payload received:', payload);
     return this.processWebhook(payload);
   }
 
@@ -47,7 +46,6 @@ export class ShippingWebhookController {
       this.logger.warn('Missing webhook signature - allowing for testing');
     }
 
-    console.log('Webhook payload received:', payload);
     return this.processWebhook(payload);
   }
 
@@ -95,7 +93,6 @@ export class ShippingWebhookController {
   private async handleByCurrentStatus(payload: any): Promise<void> {
     const status = (payload.current_status || payload.shipment_status || '').toUpperCase();
     this.logger.log(`Processing status-based webhook: ${status}`);
-    console.log('Payload for status-based webhook:', payload);
     // Try by ShipRocket order ID first
     if (payload.sr_order_id) {
       const shipment = await this.shipmentRepository.findOne({

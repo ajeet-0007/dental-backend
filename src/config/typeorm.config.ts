@@ -22,6 +22,7 @@ import { Review } from "../database/entities/review.entity";
 import { Banner } from "../database/entities/banner.entity";
 import { Wishlist } from "../database/entities/wishlist.entity";
 import { ShippingMethod } from "../database/entities/shipping-method.entity";
+import { Log } from "../database/entities/log.entity";
 
 config();
 
@@ -53,6 +54,7 @@ export const AppDataSource = new DataSource({
     Inventory,
     Review,
     Banner,
+    Log,
     Wishlist,
     ShippingMethod,
   ],

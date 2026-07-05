@@ -5,7 +5,6 @@ export class AddUniqueConstraintShipmentOrderRocket1712000000007 implements Migr
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     // First, identify and remove duplicate shipments, keeping only the earliest one per (orderId, shippingRocketId)
-    console.log('Cleaning up duplicate shipments...');
     
     // Get all duplicate shipments
     const duplicates = await queryRunner.query(`
@@ -16,7 +15,6 @@ export class AddUniqueConstraintShipmentOrderRocket1712000000007 implements Migr
       HAVING count > 1
     `);
 
-    console.log(`Found ${duplicates.length} duplicate shipment groups`);
 
     // For each duplicate group, delete all but the first (earliest created)
     for (const dup of duplicates) {
@@ -32,7 +30,6 @@ export class AddUniqueConstraintShipmentOrderRocket1712000000007 implements Migr
           `DELETE FROM shipments WHERE id IN (${deleteIds.map(() => '?').join(',')})`,
           deleteIds
         );
-        console.log(`Deleted ${deleteIds.length} duplicate shipment(s) for order ${dup.orderId}`);
       }
     }
 
@@ -43,7 +40,6 @@ export class AddUniqueConstraintShipmentOrderRocket1712000000007 implements Migr
       (\`orderId\`, \`shippingRocketId\`)
     `);
 
-    console.log('Unique constraint added successfully');
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

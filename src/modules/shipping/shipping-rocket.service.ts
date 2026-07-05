@@ -441,10 +441,8 @@ export class ShippingRocketService implements OnModuleInit {
 
     try {
       const response = await this.axiosInstance.post('/orders/create/adhoc', payload);
-      console.log('Create shipment response status: ' + response.data.status);
 
       const shipmentData = response.data;
-      console.log(shipmentData);
 
       return {
         shippingRocketId: shipmentData.shipment_id?.toString() || '',
@@ -532,7 +530,6 @@ export class ShippingRocketService implements OnModuleInit {
     try {
       await this.ensureValidToken();
 
-      console.log('[ShipRocket] Cancelling with orderId:', orderId);
 
       const response = await this.axiosInstance.post('/orders/cancel', {
         ids: [orderId],

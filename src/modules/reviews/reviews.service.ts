@@ -28,7 +28,6 @@ export class ReviewsService {
   ) {}
 
   async canUserReview(userId: string, productId: string | number): Promise<{ canReview: boolean; orderId?: string; existingReview?: boolean }> {
-    console.log('[canUserReview] Checking for userId:', userId, 'productId:', productId);
 
     // First check if there's any order (any status) for this user and product
     // Then check if it's delivered
@@ -37,16 +36,13 @@ export class ReviewsService {
       relations: ['items'],
     });
 
-    console.log('[canUserReview] Total orders found:', allOrders.length);
 
     // Filter to find orders containing this product
     const productOrders = allOrders.filter((order) =>
       order.items?.some((item) => String(item.productId) === String(productId)),
     );
 
-    console.log('[canUserReview] Orders containing this product:', productOrders.length);
     productOrders.forEach((order) => {
-      console.log('[canUserReview] Order:', order.orderNumber, 'Status:', order.status);
     });
 
     // Check for delivered orders - handle both enum and string format
@@ -54,10 +50,8 @@ export class ReviewsService {
       (order) => order.status === OrderStatus.DELIVERED || String(order.status) === 'delivered',
     );
 
-    console.log('[canUserReview] Delivered orders:', deliveredOrders.length);
 
     if (deliveredOrders.length === 0) {
-      console.log('[canUserReview] No delivered orders found');
       return { canReview: false };
     }
 
@@ -68,7 +62,6 @@ export class ReviewsService {
       },
     });
 
-    console.log('[canUserReview] Existing review:', existingReview ? 'yes' : 'no');
 
     return {
       canReview: true,

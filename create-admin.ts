@@ -16,7 +16,6 @@ const dataSource = new DataSource({
 
 async function createAdminUser() {
   await dataSource.initialize();
-  console.log("Connected to database");
 
   const userRepo = dataSource.getRepository(User);
 
@@ -27,7 +26,6 @@ async function createAdminUser() {
     existing.role = UserRole.ADMIN;
     existing.isActive = true;
     await userRepo.save(existing);
-    console.log("Updated existing user to admin:", email);
   } else {
     const hashedPassword = await bcrypt.hash("admin123", 10);
     const admin = userRepo.create({
@@ -40,11 +38,9 @@ async function createAdminUser() {
       isActive: true,
     });
     await userRepo.save(admin);
-    console.log("Created admin user:", email);
   }
 
   await dataSource.destroy();
-  console.log("Done!");
 }
 
 createAdminUser().catch(console.error);

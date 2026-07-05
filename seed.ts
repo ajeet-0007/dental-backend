@@ -12,7 +12,6 @@ const dataSource = new DataSource({
 
 async function seed() {
   await dataSource.initialize();
-  console.log('Connected to database');
 
   const queryRunner = dataSource.createQueryRunner();
   await queryRunner.connect();
@@ -28,12 +27,10 @@ async function seed() {
     } catch (e) {
       // column may already exist
     }
-    console.log('Added AUTO_INCREMENT to tables');
 
     // Check if categories exist
     const existingCats = await queryRunner.query('SELECT COUNT(*) as cnt FROM categories');
     if (parseInt(existingCats[0].cnt) > 0) {
-      console.log('Categories already exist, skipping...');
     } else {
       // Insert categories
       const categories = [
@@ -53,13 +50,11 @@ async function seed() {
           [name, slug, description]
         );
       }
-      console.log('Categories created');
     }
 
     // Check if products exist
     const existingProds = await queryRunner.query('SELECT COUNT(*) as cnt FROM products');
     if (parseInt(existingProds[0].cnt) > 0) {
-      console.log('Products already exist, skipping...');
     } else {
       // Get category IDs
       const cats = await queryRunner.query('SELECT id, slug FROM categories');
@@ -118,13 +113,11 @@ async function seed() {
           [name, slug, sku, desc, sellingPrice, mrp, catMap[catSlug as string]]
         );
       }
-      console.log('Products created');
     }
 
     // Check if inventory exists
     const existingInv = await queryRunner.query('SELECT COUNT(*) as cnt FROM inventory');
     if (parseInt(existingInv[0].cnt) > 0) {
-      console.log('Inventory already exists, skipping...');
     } else {
       const prods = await queryRunner.query('SELECT id FROM products');
       for (const prod of prods) {
@@ -133,10 +126,8 @@ async function seed() {
           [prod.id, 50 + Math.floor(Math.random() * 100)]
         );
       }
-      console.log('Inventory created');
     }
 
-    console.log('Seed completed!');
   } finally {
     await queryRunner.release();
     await dataSource.destroy();

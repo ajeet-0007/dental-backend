@@ -28,7 +28,6 @@ function getRandomImage(): string {
 
 async function seedMoreCategoriesAndProducts() {
   await dataSource.initialize();
-  console.log('Connected to database');
 
   const queryRunner = dataSource.createQueryRunner();
   await queryRunner.connect();
@@ -60,10 +59,8 @@ async function seedMoreCategoriesAndProducts() {
           [cat.name, cat.slug, cat.description]
         );
         catMap[cat.slug] = result.insertId;
-        console.log(`Created category: ${cat.name}`);
       } else {
         catMap[cat.slug] = existing[0].id;
-        console.log(`Category already exists: ${cat.name}`);
       }
     }
 
@@ -160,7 +157,6 @@ async function seedMoreCategoriesAndProducts() {
       }
     }
 
-    console.log(`Created ${productCount} new products`);
 
     const existingInv = await queryRunner.query('SELECT COUNT(*) as cnt FROM inventory');
     const prodsWithoutInv = await queryRunner.query(`
@@ -177,10 +173,8 @@ async function seedMoreCategoriesAndProducts() {
     }
     
     if (prodsWithoutInv.length > 0) {
-      console.log(`Created inventory for ${prodsWithoutInv.length} products`);
     }
 
-    console.log('Seed completed!');
   } finally {
     await queryRunner.release();
     await dataSource.destroy();
