@@ -19,27 +19,26 @@ export class DciVerifier implements IVerifier {
     if (this.browser && this.browser.connected) {
       return this.browser;
     }
+    const launchArgs = [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--single-process',
+      '--no-zygote',
+      '--disable-extensions',
+    ];
     try {
       this.browser = await puppeteer.launch({
-        headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-gpu',
-        ],
+        headless: 'shell',
+        args: launchArgs,
       });
     } catch (error) {
-      this.logger.warn(`Chrome launch failed: ${(error as Error).message}. Installing Chrome...`);
-      await asyncExec('npx puppeteer browsers install chrome', { timeout: 120000 });
+      this.logger.warn(`Chrome launch failed: ${(error as Error).message}. Installing chrome-headless-shell...`);
+      await asyncExec('npx puppeteer browsers install chrome-headless-shell', { timeout: 120000 });
       this.browser = await puppeteer.launch({
-        headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-gpu',
-        ],
+        headless: 'shell',
+        args: launchArgs,
       });
     }
     return this.browser;
@@ -48,22 +47,23 @@ export class DciVerifier implements IVerifier {
   async verify(registrationId: string, stateCouncil: string): Promise<VerificationResult> {
     const page = await (await this.getBrowser()).newPage();
     try {
-      await page.setDefaultNavigationTimeout(15000);
-      await page.setDefaultTimeout(10000);
+      await page.setDefaultNavigationTimeout(30000);
+      await page.setDefaultTimeout(20000);
 
       this.logger.log(`Verifying dentist: regNo=${registrationId}, council=${stateCouncil}`);
 
       await page.goto('https://dciindia.gov.in/DentistDetails.aspx', {
         waitUntil: 'networkidle0',
+        timeout: 30000,
       });
 
-      await page.waitForSelector('select[name$="ddlSDC"]', { timeout: 8000 });
+      await page.waitForSelector('select[name$="ddlSDC"]', { timeout: 15000 });
       await page.type('input[name$="txtRegNo"]', registrationId);
       await page.select('select[name$="ddlSDC"]', STATE_COUNCIL_MAP[stateCouncil] || stateCouncil);
 
       await page.click('input[name$="btnSearch"]');
 
-      await page.waitForSelector('#MainContent_grdIDS tr', { timeout: 15000 });
+      await page.waitForSelector('#MainContent_grdIDS tr', { timeout: 20000 });
 
       const hasResults = await page.$('#MainContent_grdIDS tr');
       if (!hasResults) {
@@ -97,10 +97,10 @@ export class DciVerifier implements IVerifier {
 
       return { verified: false, error: 'Registration number not found in DCI database', retryable: false, source: this.source };
     } catch (error) {
-      this.logger.error(`DCI verification failed: ${error.message}`);
+      this.logger.error(`DCI verification failed: ${(error as Error).stack || (error as Error).message}`);
       return {
         verified: false,
-        error: 'Unable to connect to Dental Council database. Please try again later.',
+        error: `Unable to connect to Dental Council database. Please try again later.`,
         retryable: true,
         source: this.source,
       };
