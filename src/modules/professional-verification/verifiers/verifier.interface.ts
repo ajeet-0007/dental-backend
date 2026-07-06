@@ -1,3 +1,12 @@
+export interface VerificationDebug {
+  pageUrl?: string;
+  pageTitle?: string;
+  pageText?: string;
+  pageHtml?: string;
+  consoleErrors?: string[];
+  screenshot?: string;
+}
+
 export interface VerificationResult {
   verified: boolean;
   matchedName?: string;
@@ -5,6 +14,7 @@ export interface VerificationResult {
   source?: string;
   error?: string;
   retryable?: boolean;
+  debug?: VerificationDebug;
 }
 
 export interface IVerifier {

@@ -1,5 +1,22 @@
 import { ApiProperty } from '@nestjs/swagger';
 
+export class VerificationDebugDto {
+  @ApiProperty({ required: false })
+  pageUrl?: string;
+
+  @ApiProperty({ required: false })
+  pageTitle?: string;
+
+  @ApiProperty({ required: false })
+  pageText?: string;
+
+  @ApiProperty({ required: false })
+  consoleErrors?: string[];
+
+  @ApiProperty({ required: false })
+  screenshot?: string;
+}
+
 export class VerificationResponseDto {
   @ApiProperty()
   verified: boolean;
@@ -21,4 +38,7 @@ export class VerificationResponseDto {
 
   @ApiProperty({ required: false })
   nextAttemptAt?: Date;
+
+  @ApiProperty({ required: false })
+  debug?: VerificationDebugDto;
 }

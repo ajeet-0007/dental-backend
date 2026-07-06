@@ -4,6 +4,7 @@ import { IVerifier, VerificationResult } from './verifier.interface';
 import { STATE_COUNCIL_MAP } from '../constants/state-councils';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 
@@ -46,88 +47,117 @@ export class DciVerifier implements IVerifier {
     return this.browser;
   }
 
+  private async captureDebugInfo(page: puppeteer.Page, consoleErrors: string[]): Promise<VerificationResult['debug']> {
+    const debug: VerificationResult['debug'] = {};
+    try {
+      debug.pageUrl = page.url();
+      debug.pageTitle = await page.title();
+      debug.pageText = (await page.evaluate(() => document.body?.innerText?.substring(0, 5000))) || '';
+      debug.pageHtml = (await page.evaluate(() => document.body?.innerHTML?.substring(0, 10000))) || '';
+      debug.consoleErrors = consoleErrors;
+      const screenshotPath = path.join(os.tmpdir(), `dci-verifier-failure-${Date.now()}.png`);
+      await page.screenshot({ path: screenshotPath, fullPage: true });
+      const buf = fs.readFileSync(screenshotPath);
+      if (buf.length <= 300000) {
+        debug.screenshot = buf.toString('base64');
+      }
+    } catch {}
+    return debug;
+  }
+
   async verify(registrationId: string, stateCouncil: string): Promise<VerificationResult> {
-    const MAX_RETRIES = 1;
-    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-      const page = await (await this.getBrowser()).newPage();
-      try {
-        await page.setDefaultNavigationTimeout(60000);
-        await page.setDefaultTimeout(60000);
+    const page = await (await this.getBrowser()).newPage();
+    const consoleErrors: string[] = [];
 
-        this.logger.log(`Verifying dentist: regNo=${registrationId}, council=${stateCouncil} (attempt ${attempt + 1})`);
+    page.on('console', msg => {
+      if (msg.type() === 'error') {
+        consoleErrors.push(msg.text());
+      }
+    });
+    page.on('pageerror', err => {
+      consoleErrors.push(`Page Error: ${(err as Error).message}`);
+    });
 
-        await page.goto('https://dciindia.gov.in/DentistDetails.aspx', {
-          waitUntil: 'domcontentloaded',
-          timeout: 60000,
-        });
+    try {
+      await page.setDefaultNavigationTimeout(60000);
+      await page.setDefaultTimeout(60000);
 
-        await page.waitForSelector('select[name$="ddlSDC"]', { timeout: 30000 });
-        await page.type('input[name$="txtRegNo"]', registrationId);
-        await page.select('select[name$="ddlSDC"]', STATE_COUNCIL_MAP[stateCouncil] || stateCouncil);
+      this.logger.log(`Verifying dentist: regNo=${registrationId}, council=${stateCouncil}`);
 
-        await Promise.all([
-          page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 }),
-          page.click('input[name$="btnSearch"]'),
-        ]);
+      await page.goto('https://dciindia.gov.in/DentistDetails.aspx', {
+        waitUntil: 'networkidle0',
+        timeout: 60000,
+      });
 
-        await page.waitForSelector('#MainContent_grdIDS tr', { timeout: 30000 });
+      await page.waitForSelector('#MainContent_txtRegNo', { timeout: 30000 });
+      await page.waitForSelector('#MainContent_ddlSDC', { timeout: 30000 });
+      await page.waitForSelector('#MainContent_btnSearch', { timeout: 30000 });
 
-        const result = await page.evaluate((expectedRegNo: string) => {
-          const rows = document.querySelectorAll('#MainContent_grdIDS tr');
-          for (let i = 1; i < rows.length; i++) {
-            const cells = rows[i].querySelectorAll('td');
-            if (cells.length >= 3) {
-              const name = cells[1]?.textContent?.trim().replace(/^Dr\.\s*/i, '');
-              const regNo = cells[2]?.textContent?.trim();
-              if (regNo?.toUpperCase() === expectedRegNo.toUpperCase()) {
-                return { matched: true, name, regNo };
-              }
+      const councilCode = STATE_COUNCIL_MAP[stateCouncil] || stateCouncil;
+
+      await page.evaluate((regNo) => {
+        const el = document.getElementById('MainContent_txtRegNo') as HTMLInputElement;
+        if (el) el.value = regNo;
+      }, registrationId);
+
+      await page.select('#MainContent_ddlSDC', councilCode);
+
+      const navigationPromise = page.waitForNavigation({
+        waitUntil: 'networkidle0',
+        timeout: 60000,
+      });
+
+      await page.click('#MainContent_btnSearch');
+
+      await navigationPromise;
+
+      await page.waitForSelector('#MainContent_grdIDS', { timeout: 30000 });
+
+      const result = await page.evaluate((expectedRegNo: string) => {
+        const rows = document.querySelectorAll('#MainContent_grdIDS tr');
+        for (let i = 1; i < rows.length; i++) {
+          const cells = rows[i].querySelectorAll('td');
+          if (cells.length >= 3) {
+            const name = cells[1]?.textContent?.trim().replace(/^Dr\.\s*/i, '');
+            const regNo = cells[2]?.textContent?.trim();
+            if (regNo?.toUpperCase() === expectedRegNo.toUpperCase()) {
+              return { matched: true, name, regNo };
             }
           }
-          return { matched: false };
-        }, registrationId);
-
-        if (result.matched) {
-          this.logger.log(`Dentist verified successfully: ${result.name} (${result.regNo})`);
-          return {
-            verified: true,
-            matchedName: result.name,
-            matchedRegNo: result.regNo,
-            source: this.source,
-          };
         }
+        return { matched: false };
+      }, registrationId);
 
-        return { verified: false, error: 'Registration number not found in DCI database', retryable: false, source: this.source };
-      } catch (error) {
-        let pageState = '';
-        try {
-          pageState = `URL=${page.url()}, Title=${await page.title()}`;
-          const screenshotDir = os.tmpdir();
-          const screenshotPath = path.join(screenshotDir, `dci-verifier-failure-${Date.now()}.png`);
-          await page.screenshot({ path: screenshotPath, fullPage: true });
-          pageState += `, Screenshot=${screenshotPath}`;
-        } catch {}
-        this.logger.error(`DCI verification failed (attempt ${attempt + 1}): ${(error as Error).stack || (error as Error).message} | ${pageState}`);
-
-        if (attempt < MAX_RETRIES) {
-          this.logger.log(`Retrying DCI verification for ${registrationId}...`);
-          await page.close();
-          continue;
-        }
-
+      if (result.matched) {
+        this.logger.log(`Dentist verified successfully: ${result.name} (${result.regNo})`);
         return {
-          verified: false,
-          error: `Unable to connect to Dental Council database. Please try again later.`,
-          retryable: true,
+          verified: true,
+          matchedName: result.name,
+          matchedRegNo: result.regNo,
           source: this.source,
         };
-      } finally {
-        if (!page.isClosed()) {
-          await page.close();
-        }
+      }
+
+      return { verified: false, error: 'Registration number not found in DCI database', retryable: false, source: this.source };
+    } catch (error) {
+      const debug = await this.captureDebugInfo(page, consoleErrors);
+
+      this.logger.error(
+        `DCI verification failed: ${(error as Error).stack || (error as Error).message}`,
+      );
+
+      return {
+        verified: false,
+        error: 'Unable to connect to Dental Council database. Please try again later.',
+        retryable: true,
+        source: this.source,
+        debug,
+      };
+    } finally {
+      if (!page.isClosed()) {
+        await page.close();
       }
     }
-    return { verified: false, error: 'Unable to connect to Dental Council database. Please try again later.', retryable: true, source: this.source };
   }
 
   async onApplicationShutdown() {
