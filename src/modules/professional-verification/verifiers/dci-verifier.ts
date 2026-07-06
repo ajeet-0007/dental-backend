@@ -30,14 +30,14 @@ export class DciVerifier implements IVerifier {
     ];
     try {
       this.browser = await puppeteer.launch({
-        headless: 'shell',
+        headless: true,
         args: launchArgs,
       });
     } catch (error) {
-      this.logger.warn(`Chrome launch failed: ${(error as Error).message}. Installing chrome-headless-shell...`);
-      await asyncExec('npx puppeteer browsers install chrome-headless-shell', { timeout: 120000 });
+      this.logger.warn(`Chrome launch failed: ${(error as Error).message}. Installing Chrome...`);
+      await asyncExec('npx puppeteer browsers install chrome', { timeout: 120000 });
       this.browser = await puppeteer.launch({
-        headless: 'shell',
+        headless: true,
         args: launchArgs,
       });
     }
