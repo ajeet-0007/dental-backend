@@ -8,7 +8,7 @@
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
-    "start:prod": "node dist/main",
+    "start:prod": "npx puppeteer browsers install chrome && node dist/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "typeorm": "typeorm-ts-node-commonjs",
     "migration:generate": "npm run typeorm migration:generate -- -d src/config/typeorm.config.ts",
@@ -17,8 +17,7 @@
     "seed:banners": "ts-node src/database/seed-banners.ts",
     "seed:departments": "ts-node src/database/seed-departments.ts",
     "seed:brands": "ts-node src/database/seed-brands-full.ts",
-    "seed:embed-products": "ts-node src/database/embed-products.ts",
-    "postinstall": "npx puppeteer browsers install chrome"
+    "seed:embed-products": "ts-node src/database/embed-products.ts"
   },
   "dependencies": {
     "@fast-csv/parse": "^5.0.5",

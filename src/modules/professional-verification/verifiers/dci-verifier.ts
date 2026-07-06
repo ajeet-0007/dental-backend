@@ -2,6 +2,10 @@ import { Injectable, Logger } from '@nestjs/common';
 import * as puppeteer from 'puppeteer';
 import { IVerifier, VerificationResult } from './verifier.interface';
 import { STATE_COUNCIL_MAP } from '../constants/state-councils';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const asyncExec = promisify(exec);
 
 @Injectable()
 export class DciVerifier implements IVerifier {
@@ -15,15 +19,29 @@ export class DciVerifier implements IVerifier {
     if (this.browser && this.browser.connected) {
       return this.browser;
     }
-    this.browser = await puppeteer.launch({
-      headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-      ],
-    });
+    try {
+      this.browser = await puppeteer.launch({
+        headless: true,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-gpu',
+        ],
+      });
+    } catch (error) {
+      this.logger.warn(`Chrome launch failed: ${(error as Error).message}. Installing Chrome...`);
+      await asyncExec('npx puppeteer browsers install chrome', { timeout: 120000 });
+      this.browser = await puppeteer.launch({
+        headless: true,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-gpu',
+        ],
+      });
+    }
     return this.browser;
   }
 
