@@ -97,7 +97,11 @@ export class DciVerifier implements IVerifier {
 
       return { verified: false, error: 'Registration number not found in DCI database', retryable: false, source: this.source };
     } catch (error) {
-      this.logger.error(`DCI verification failed: ${(error as Error).stack || (error as Error).message}`);
+      let pageState = '';
+      try {
+        pageState = `URL=${page.url()}, Title=${await page.title()}`;
+      } catch {}
+      this.logger.error(`DCI verification failed: ${(error as Error).stack || (error as Error).message} | ${pageState}`);
       return {
         verified: false,
         error: `Unable to connect to Dental Council database. Please try again later.`,
