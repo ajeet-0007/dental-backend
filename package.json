@@ -17,7 +17,8 @@
     "seed:banners": "ts-node src/database/seed-banners.ts",
     "seed:departments": "ts-node src/database/seed-departments.ts",
     "seed:brands": "ts-node src/database/seed-brands-full.ts",
-    "seed:embed-products": "ts-node src/database/embed-products.ts"
+    "seed:embed-products": "ts-node src/database/embed-products.ts",
+    "postinstall": "npx puppeteer browsers install chrome"
   },
   "dependencies": {
     "@fast-csv/parse": "^5.0.5",
