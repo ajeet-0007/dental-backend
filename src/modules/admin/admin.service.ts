@@ -226,6 +226,7 @@ export class AdminService {
       .leftJoinAndSelect("product.options", "options")
       .leftJoinAndSelect("options.values", "optionValues")
       .leftJoinAndSelect("product.variants", "variants")
+      .leftJoinAndSelect("product.inventories", "inventories")
       .orderBy("product.createdAt", "DESC")
       .skip((page - 1) * limit)
       .take(limit);
@@ -270,12 +271,18 @@ export class AdminService {
         }
       }
 
+      const baseInventory = (product.inventories || []).find(
+        (inv: any) => !inv.productVariantId,
+      );
+
       return {
         ...product,
         variantCount,
         minVariantPrice,
         maxVariantPrice,
         variantPriceRange,
+        stock: baseInventory?.quantity ?? 0,
+        inventories: undefined,
       };
     });
 
