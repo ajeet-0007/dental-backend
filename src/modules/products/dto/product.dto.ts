@@ -114,10 +114,10 @@ export class CreateProductDto {
   @IsNumber()
   stock?: number;
 
-  @ApiProperty({ required: false, type: [String] })
+  @ApiProperty({ required: false })
   @IsOptional()
-  @IsArray()
-  features?: string[];
+  @IsString()
+  features?: string;
 
   @ApiProperty({ required: false })
   @IsOptional()
@@ -258,10 +258,10 @@ export class UpdateProductDto {
   @IsArray()
   options?: ProductOptionDto[];
 
-  @ApiProperty({ required: false, type: [String] })
+  @ApiProperty({ required: false })
   @IsOptional()
-  @IsArray()
-  features?: string[];
+  @IsString()
+  features?: string;
 
   @ApiProperty({ required: false })
   @IsOptional()
@@ -702,10 +702,10 @@ export class CreateProductWithVariantsDto {
   @IsArray()
   variants?: CreateVariantDto[];
 
-  @ApiProperty({ required: false, type: [String] })
+  @ApiProperty({ required: false })
   @IsOptional()
-  @IsArray()
-  features?: string[];
+  @IsString()
+  features?: string;
 
   @ApiProperty({ required: false })
   @IsOptional()

@@ -602,7 +602,7 @@ export class BulkUploadService {
             isActive: group.productData.isActive,
             isFeatured: group.productData.isFeatured,
             ...(group.productData.expiresAt ? { expiresAt: new Date(group.productData.expiresAt) } : {}),
-            features: group.productData.features ? [group.productData.features] : [],
+            features: group.productData.features || undefined,
             keySpecifications: group.productData.keySpecifications,
             packaging: group.productData.packaging,
             directionToUse: group.productData.directionToUse,

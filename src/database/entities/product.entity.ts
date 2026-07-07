@@ -80,13 +80,13 @@ export class Product {
   @Column({ nullable: true })
   expiresAt: Date;
 
-  @Column({ type: "json", nullable: true })
-  features: string[];
+  @Column({ type: "text", nullable: true })
+  features: string;
 
   @Column({ type: "text", nullable: true })
   keySpecifications: string;
 
-  @Column({ nullable: true })
+  @Column({ type: "text", nullable: true })
   packaging: string;
 
   @Column({ type: "text", nullable: true })
