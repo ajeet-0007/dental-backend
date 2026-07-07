@@ -1,20 +1,13 @@
-export interface VerificationDebug {
-  pageUrl?: string;
-  pageTitle?: string;
-  pageText?: string;
-  pageHtml?: string;
-  consoleErrors?: string[];
-  screenshot?: string;
-}
-
 export interface VerificationResult {
   verified: boolean;
   matchedName?: string;
   matchedRegNo?: string;
+  matchedCouncil?: string;
+  matchedQualification?: string;
+  matchedRegistrationDate?: string;
   source?: string;
   error?: string;
   retryable?: boolean;
-  debug?: VerificationDebug;
 }
 
 export interface IVerifier {

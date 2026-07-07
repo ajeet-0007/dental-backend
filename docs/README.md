@@ -52,7 +52,7 @@
 | [health.md](./health.md) | Health check & API info |
 | [news.md](./news.md) | Dental news via Tavily API (cron) |
 | [ai-assistant.md](./ai-assistant.md) | RAG chatbot with Supabase pgvector |
-| [professional-verification.md](./professional-verification.md) | DCI dentist verification via Puppeteer |
+| [professional-verification.md](./professional-verification.md) | DCI dentist verification via Axios + Cheerio |
 
 ### Shared Infrastructure
 
@@ -72,6 +72,6 @@
 - **AI:** NVIDIA API (Llama 3.3 70B), Supabase pgvector
 - **Email:** Nodemailer + Handlebars
 - **Auth:** Passport (JWT, Google, Facebook, Apple)
-- **Scraping:** Puppeteer
+- **Scraping:** Axios + Cheerio
 - **News:** Tavily API
 - **Scheduling:** @nestjs/schedule

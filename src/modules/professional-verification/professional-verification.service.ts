@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnApplicationShutdown } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../../database/entities';
@@ -7,7 +7,7 @@ import { VerificationResponseDto } from './dto/verification-response.dto';
 import { DciVerifier } from './verifiers/dci-verifier';
 
 @Injectable()
-export class ProfessionalVerificationService implements OnApplicationShutdown {
+export class ProfessionalVerificationService {
   private readonly logger = new Logger(ProfessionalVerificationService.name);
   private readonly MAX_ATTEMPTS = 5;
   private readonly RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
@@ -168,9 +168,5 @@ export class ProfessionalVerificationService implements OnApplicationShutdown {
       return timeSinceLastAttempt >= this.RATE_LIMIT_WINDOW_MS;
     }
     return true;
-  }
-
-  async onApplicationShutdown() {
-    await this.dciVerifier.onApplicationShutdown();
   }
 }

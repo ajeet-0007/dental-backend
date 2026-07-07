@@ -4,7 +4,7 @@
 
 ## Purpose
 
-Dental professional verification: users submit their Dental Council of India (DCI) registration ID and state council. The system scrapes the DCI website using Puppeteer to verify credentials. Supports manual approve/reject by admin with rate limiting to prevent abuse.
+Dental professional verification: users submit their Dental Council of India (DCI) registration ID and state council. The system scrapes the DCI website using Axios + Cheerio to verify credentials. Supports manual approve/reject by admin with rate limiting to prevent abuse.
 
 ---
 
@@ -28,36 +28,42 @@ User                       ProfVerificationService               DCI Website
   │                                │  • Max 3 attempts per hour     │
   │                                │  • Reset on success            │
   │                                │                                │
-  │                                │  Launch headless browser       │
-  │                                │  (Puppeteer)                   │
+  │                                │  HTTP GET DCI page             │
+  │                                │  (Axios)                       │
   │                                │                                │
   │                                │  Navigate to DCI verification  │
   │                                │  page                          │
   │                                │ ───────────────────────────►   │
   │                                │                                │
-  │                                │  Fill form:                    │
+  │                                │  POST form with __VIEWSTATE,   │
+  │                                │  __EVENTVALIDATION + cookies   │
   │                                │  • Registration No             │
   │                                │  • State Council (dropdown)    │
-  │                                │                                │
-  │                                │  Submit form, wait for results │
   │                                │ ◄── verification result ───── │
   │                                │                                │
-  │                                │  Parse result:                 │
+  │                                │  Parse HTML (Cheerio):         │
   │                                │  • Name matched?               │
   │                                │  • Registration valid?         │
+  │                                │  • Council, Qualification,     │
+  │                                │    Registration Date           │
   │                                │                                │
   │                                │  if verified:                  │
   │                                │    Update user:                │
   │                                │    isProfessionalVerified=true │
   │                                │    verificationMethod="dci"    │
-  │                                │    professionalVerifiedAt=now  │
-  │                                │  else:                         │
+│                                │    professionalVerifiedAt=now  │
+│                                │    Return extra DCI fields      │
+│                                │  else:                         │
   │                                │    Increment attempt count     │
   │                                │    Record error message        │
   │                                │                                │
   │  ◄── { verified: true/false,  │                                │
   │        matchedName?,           │                                │
-  │        source: "dci_scrape" }  │                                │
+  │        matchedRegNo?,          │                                │
+  │        matchedCouncil?,        │                                │
+  │        matchedQualification?,  │                                │
+  │        matchedRegistrationDate?│                                │
+  │        source: "dci_idr" }     │                                │
 ```
 
 ---
@@ -95,12 +101,11 @@ User                       ProfVerificationService               DCI Website
 
 ---
 
-## DCI Verifier (Puppeteer)
+## DCI Verifier (Axios + Cheerio)
 
 | Method | Description |
 |---|---|
-| `verify(registrationId, stateCouncil)` | Launch browser → navigate DCI site → fill form → parse result → close browser |
-| `getBrowser()` | Singleton browser instance (lazy init) |
+| `verify(registrationId, stateCouncil)` | GET DCI page → extract __VIEWSTATE/__EVENTVALIDATION → POST search → parse HTML grid with Cheerio |
 
 **State councils:** Validated against `STATE_DENTAL_COUNCILS` constant (array of Indian state dental council names). Mapped to DCI form values via `STATE_COUNCIL_MAP`.
 
@@ -108,7 +113,7 @@ User                       ProfVerificationService               DCI Website
 
 ## Rate Limiting
 
-- Max **3 verification attempts** per user per hour
+- Max **5 verification attempts** per user per hour
 - Counter stored in `verificationAttempts` and `verificationLastAttemptAt` on User entity
 - Counter resets on successful verification
 - Returns `canAttempt: false` with `nextAttemptAt` in response
@@ -120,7 +125,7 @@ User                       ProfVerificationService               DCI Website
 | DTO | Fields |
 |---|---|
 | `SubmitCredentialsDto` | dentalRegistrationId (required), stateDentalCouncil (required, validated against STATE_DENTAL_COUNCILS) |
-| `VerificationResponseDto` | verified, matchedName?, matchedRegNo?, source?, error?, retryable?, nextAttemptAt? |
+| `VerificationResponseDto` | verified, matchedName?, matchedRegNo?, matchedCouncil?, matchedQualification?, matchedRegistrationDate?, source?, error?, retryable?, nextAttemptAt? |
 
 ---
 
