@@ -55,18 +55,27 @@ export class PaymentsService {
     const frontendUrl =
       this.configService.get("FRONTEND_URL") || "http://localhost:5173";
 
-    // Build line items from the cart items passed in
-    const lineItems = createPaymentSessionDto.items.map(item => ({
-      price_data: {
-        currency: "inr",
-        product_data: {
-          name: item.productName,
-          images: item.productImage ? [item.productImage] : undefined,
+    // Build line items from the cart items passed in, with GST and shipping distributed proportionally
+    const { subtotal, taxAmount, shippingAmount } = createPaymentSessionDto;
+    const lineItems = createPaymentSessionDto.items.map(item => {
+      const lineTotal = item.unitPrice * item.quantity;
+      const lineShare = subtotal > 0 ? lineTotal / subtotal : 0;
+      const lineTax = taxAmount * lineShare;
+      const lineShipping = shippingAmount * lineShare;
+      const unitWithTaxAndShipping = item.unitPrice + (lineTax + lineShipping) / item.quantity;
+
+      return {
+        price_data: {
+          currency: "inr",
+          product_data: {
+            name: item.productName,
+            images: item.productImage ? [item.productImage] : undefined,
+          },
+          unit_amount: Math.round(unitWithTaxAndShipping * 100),
         },
-        unit_amount: Math.round(item.unitPrice * 100),
-      },
-      quantity: item.quantity,
-    }));
+        quantity: item.quantity,
+      };
+    });
 
     // Save order data to PaymentIntent table (avoids Stripe metadata 500 char limit)
     const paymentIntent = this.paymentIntentRepository.create({
