@@ -12,12 +12,21 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
-import { RegisterDto, LoginDto, RefreshTokenDto } from './dto/auth.dto';
+import {
+  RegisterDto,
+  LoginDto,
+  RefreshTokenDto,
+  SendOtpDto,
+  VerifyOtpDto,
+  ResetPasswordDto,
+} from './dto/auth.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { AuthGuard } from '@nestjs/passport';
+import { GoogleRecaptchaGuard } from '@nestlab/google-recaptcha';
 import { Response, Request as ExpressRequest } from 'express';
 import { ConfigService } from '@nestjs/config';
 import * as jwt from 'jsonwebtoken';
+import { OtpService } from '../otp/otp.service';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -25,9 +34,11 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly configService: ConfigService,
+    private readonly otpService: OtpService,
   ) {}
 
   @Post('register')
+  @UseGuards(GoogleRecaptchaGuard)
   @ApiOperation({ summary: 'Register a new user' })
   async register(@Body() registerDto: RegisterDto) {
     return this.authService.register(registerDto);
@@ -35,6 +46,7 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(GoogleRecaptchaGuard)
   @ApiOperation({ summary: 'Login user' })
   async login(@Body() loginDto: LoginDto) {
     return this.authService.login(loginDto);
@@ -57,15 +69,46 @@ export class AuthController {
     return { message: 'Logged out successfully' };
   }
 
+  @Post('send-otp')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Send OTP to email' })
+  async sendOtp(@Body() sendOtpDto: SendOtpDto) {
+    return this.otpService.sendOtp(
+      sendOtpDto.email,
+      sendOtpDto.type as 'login' | 'register' | 'reset',
+    );
+  }
+
+  @Post('verify-otp')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Verify OTP' })
+  async verifyOtp(@Body() verifyOtpDto: VerifyOtpDto) {
+    return this.authService.verifyOtp(verifyOtpDto);
+  }
+
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(GoogleRecaptchaGuard)
+  @ApiOperation({ summary: 'Send password reset OTP' })
+  async forgotPassword(@Body() body: { email: string }) {
+    return this.otpService.sendOtp(body.email, 'reset');
+  }
+
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Reset password with OTP' })
+  async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
+    return this.authService.resetPassword(resetPasswordDto);
+  }
+
   @Post('google/token')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Verify Google token and login/register user' })
   async googleToken(@Body() body: { token: string }) {
     const { token } = body;
-    
-    // Decode the Google JWT token
+
     const decoded = jwt.decode(token) as any;
-    
+
     if (!decoded) {
       throw new Error('Invalid token');
     }
@@ -96,11 +139,15 @@ export class AuthController {
   @ApiOperation({ summary: 'Google OAuth callback' })
   googleAuthCallback(@Req() req: any, @Res() res: Response) {
     const { user, accessToken, refreshToken } = req.user;
-    let frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    // Remove trailing slash if present
+    let frontendUrl =
+      process.env.FRONTEND_URL || 'http://localhost:5173';
     frontendUrl = frontendUrl.replace(/\/$/, '');
-    const tokenPayload = Buffer.from(JSON.stringify({ accessToken, refreshToken, user })).toString('base64');
-    res.redirect(`${frontendUrl}/auth/callback?token=${tokenPayload}`);
+    const tokenPayload = Buffer.from(
+      JSON.stringify({ accessToken, refreshToken, user }),
+    ).toString('base64');
+    res.redirect(
+      `${frontendUrl}/auth/callback?token=${tokenPayload}`,
+    );
   }
 
   @Get('facebook')
@@ -113,10 +160,15 @@ export class AuthController {
   @ApiOperation({ summary: 'Facebook OAuth callback' })
   facebookAuthCallback(@Req() req: any, @Res() res: Response) {
     const { user, accessToken, refreshToken } = req.user;
-    let frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    let frontendUrl =
+      process.env.FRONTEND_URL || 'http://localhost:5173';
     frontendUrl = frontendUrl.replace(/\/$/, '');
-    const tokenPayload = Buffer.from(JSON.stringify({ accessToken, refreshToken, user })).toString('base64');
-    res.redirect(`${frontendUrl}/auth/callback?token=${tokenPayload}`);
+    const tokenPayload = Buffer.from(
+      JSON.stringify({ accessToken, refreshToken, user }),
+    ).toString('base64');
+    res.redirect(
+      `${frontendUrl}/auth/callback?token=${tokenPayload}`,
+    );
   }
 
   @Get('apple')
@@ -129,9 +181,14 @@ export class AuthController {
   @ApiOperation({ summary: 'Apple OAuth callback' })
   appleAuthCallback(@Req() req: any, @Res() res: Response) {
     const { user, accessToken, refreshToken } = req.user;
-    let frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    let frontendUrl =
+      process.env.FRONTEND_URL || 'http://localhost:5173';
     frontendUrl = frontendUrl.replace(/\/$/, '');
-    const tokenPayload = Buffer.from(JSON.stringify({ accessToken, refreshToken, user })).toString('base64');
-    res.redirect(`${frontendUrl}/auth/callback?token=${tokenPayload}`);
+    const tokenPayload = Buffer.from(
+      JSON.stringify({ accessToken, refreshToken, user }),
+    ).toString('base64');
+    res.redirect(
+      `${frontendUrl}/auth/callback?token=${tokenPayload}`,
+    );
   }
 }

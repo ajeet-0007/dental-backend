@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from "@nestjs/config";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { MulterModule } from "@nestjs/platform-express";
 import { ScheduleModule } from "@nestjs/schedule";
+import { GoogleRecaptchaModule } from "@nestlab/google-recaptcha";
 import { AuthModule } from "./modules/auth/auth.module";
 import { UsersModule } from "./modules/users/users.module";
 import { AddressesModule } from "./modules/addresses/addresses.module";
@@ -24,6 +25,7 @@ import { ReviewsModule } from "./modules/reviews/reviews.module";
 import { EmailModule } from "./modules/email/email.module";
 import { ReturnsModule } from "./modules/returns/returns.module";
 import { NewsModule } from "./modules/news/news.module";
+import { BrevoModule } from "./modules/brevo/brevo.module";
 
 import { AiAssistantModule } from "./modules/ai-assistant/ai-assistant.module";
 import { BulkUploadModule } from "./modules/bulk-upload/bulk-upload.module";
@@ -36,6 +38,15 @@ import { LoggerModule } from "./modules/logger/logger.module";
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: ".env",
+    }),
+    GoogleRecaptchaModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        secretKey: configService.get("GOOGLE_RECAPTCHA_SECRET_KEY"),
+        response: (req: any) => req.headers["recaptcha"] as string,
+        skipIf: configService.get("NODE_ENV") !== "production",
+      }),
+      inject: [ConfigService],
     }),
     MulterModule.register({
       limits: {
@@ -89,6 +100,7 @@ import { LoggerModule } from "./modules/logger/logger.module";
     EntityBulkUploadModule,
     ProfessionalVerificationModule,
     LoggerModule,
+    BrevoModule,
   ],
 })
 export class AppModule {}

@@ -64,6 +64,12 @@ export class User {
   @Column({ default: false })
   isSocialLogin: boolean;
 
+  @Column({ default: false })
+  isEmailVerified: boolean;
+
+  @Column({ nullable: true })
+  emailVerifiedAt: Date;
+
   // Professional Verification Fields
   @Column({ nullable: true })
   dentalRegistrationId: string;

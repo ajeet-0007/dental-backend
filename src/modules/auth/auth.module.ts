@@ -10,6 +10,7 @@ import { JwtStrategy } from '../../common/guards/jwt.strategy';
 import { GoogleStrategy } from './strategies/google.strategy';
 import { FacebookStrategy } from './strategies/facebook.strategy';
 import { AppleStrategy } from './strategies/apple.strategy';
+import { OtpModule } from '../otp/otp.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { AppleStrategy } from './strategies/apple.strategy';
       }),
       inject: [ConfigService],
     }),
+    OtpModule,
   ],
   controllers: [AuthController],
   providers: [

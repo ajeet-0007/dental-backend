@@ -2,6 +2,7 @@ import {
   Injectable,
   UnauthorizedException,
   ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -9,7 +10,14 @@ import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { User, UserRole } from '../../database/entities';
-import { RegisterDto, LoginDto, RefreshTokenDto } from './dto/auth.dto';
+import {
+  RegisterDto,
+  LoginDto,
+  RefreshTokenDto,
+  VerifyOtpDto,
+  ResetPasswordDto,
+} from './dto/auth.dto';
+import { OtpService } from '../otp/otp.service';
 
 export interface SocialUserData {
   provider: 'google' | 'facebook' | 'apple';
@@ -27,17 +35,21 @@ export class AuthService {
     private userRepository: Repository<User>,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private otpService: OtpService,
   ) {}
 
   async register(registerDto: RegisterDto) {
-    const { email, phone, password, firstName, lastName, isAdmin } = registerDto;
+    const { email, phone, password, firstName, lastName, isAdmin } =
+      registerDto;
 
     const existingUser = await this.userRepository.findOne({
       where: [{ email }, { phone }],
     });
 
     if (existingUser) {
-      throw new ConflictException('User with this email or phone already exists');
+      throw new ConflictException(
+        'User with this email or phone already exists',
+      );
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -49,16 +61,18 @@ export class AuthService {
       firstName,
       lastName,
       role: isAdmin ? UserRole.ADMIN : UserRole.USER,
+      isEmailVerified: false,
     });
 
     await this.userRepository.save(user);
 
-    const tokens = await this.generateTokens(user);
-    await this.updateRefreshToken(user.id, tokens.refreshToken);
+    await this.otpService.sendOtp(email, 'register');
 
     return {
-      user: this.sanitizeUser(user),
-      ...tokens,
+      message:
+        'Registration successful. Please verify your email with the OTP sent.',
+      email: user.email,
+      requiresVerification: true,
     };
   }
 
@@ -114,7 +128,9 @@ export class AuthService {
   }
 
   async logout(userId: string) {
-    await this.userRepository.update(userId, { refreshToken: '' as any });
+    await this.userRepository.update(userId, {
+      refreshToken: '' as any,
+    });
   }
 
   async validateUser(userId: string): Promise<User> {
@@ -127,6 +143,65 @@ export class AuthService {
     }
 
     return user;
+  }
+
+  async verifyOtp(dto: VerifyOtpDto) {
+    await this.otpService.verifyOtp(dto.email, dto.code, dto.type);
+
+    if (dto.type === 'login') {
+      const user = await this.userRepository.findOne({
+        where: { email: dto.email },
+      });
+      if (!user) throw new UnauthorizedException('User not found');
+      if (!user.isActive)
+        throw new UnauthorizedException('Account is deactivated');
+
+      const tokens = await this.generateTokens(user);
+      await this.updateRefreshToken(user.id, tokens.refreshToken);
+      return {
+        user: this.sanitizeUser(user),
+        ...tokens,
+      };
+    }
+
+    if (dto.type === 'register') {
+      const user = await this.userRepository.findOne({
+        where: { email: dto.email },
+      });
+      if (!user) throw new UnauthorizedException('User not found');
+
+      user.isEmailVerified = true;
+      user.emailVerifiedAt = new Date();
+      await this.userRepository.save(user);
+
+      const tokens = await this.generateTokens(user);
+      await this.updateRefreshToken(user.id, tokens.refreshToken);
+      return {
+        user: this.sanitizeUser(user),
+        ...tokens,
+      };
+    }
+
+    return { message: 'OTP verified successfully' };
+  }
+
+  async resetPassword(dto: ResetPasswordDto) {
+    await this.otpService.verifyOtp(dto.email, dto.code, 'reset');
+
+    const user = await this.userRepository.findOne({
+      where: { email: dto.email },
+    });
+    if (!user) throw new UnauthorizedException('User not found');
+
+    user.password = await bcrypt.hash(dto.newPassword, 10);
+    await this.userRepository.save(user);
+
+    const tokens = await this.generateTokens(user);
+    await this.updateRefreshToken(user.id, tokens.refreshToken);
+    return {
+      user: this.sanitizeUser(user),
+      ...tokens,
+    };
   }
 
   private async generateTokens(user: User) {
@@ -143,7 +218,8 @@ export class AuthService {
       }),
       this.jwtService.signAsync(payload, {
         secret: this.configService.get('JWT_REFRESH_SECRET'),
-        expiresIn: this.configService.get('JWT_REFRESH_EXPIRES_IN') || '7d',
+        expiresIn:
+          this.configService.get('JWT_REFRESH_EXPIRES_IN') || '7d',
       }),
     ]);
 
@@ -153,7 +229,10 @@ export class AuthService {
     };
   }
 
-  private async updateRefreshToken(userId: string, refreshToken: string) {
+  private async updateRefreshToken(
+    userId: string,
+    refreshToken: string,
+  ) {
     const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
     await this.userRepository.update(userId, {
       refreshToken: hashedRefreshToken,
@@ -166,9 +245,11 @@ export class AuthService {
   }
 
   async validateSocialUser(data: SocialUserData) {
-    const { provider, providerId, email, firstName, lastName, avatar } = data;
+    const { provider, providerId, email, firstName, lastName, avatar } =
+      data;
 
-    const providerField = `${provider}Id` as 'googleId' | 'facebookId' | 'appleId';
+    const providerField =
+      `${provider}Id` as 'googleId' | 'facebookId' | 'appleId';
 
     let user = await this.userRepository.findOne({
       where: { [providerField]: providerId },
@@ -195,6 +276,7 @@ export class AuthService {
       user[providerField] = providerId;
       if (avatar) user.avatar = avatar;
       user.isSocialLogin = true;
+      user.isEmailVerified = true;
       await this.userRepository.save(user);
       const tokens = await this.generateTokens(user);
       await this.updateRefreshToken(user.id, tokens.refreshToken);
@@ -204,7 +286,9 @@ export class AuthService {
       };
     }
 
-    const randomPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
+    const randomPassword =
+      Math.random().toString(36).slice(-8) +
+      Math.random().toString(36).slice(-8);
     const hashedPassword = await bcrypt.hash(randomPassword, 10);
 
     user = this.userRepository.create({
@@ -216,6 +300,7 @@ export class AuthService {
       [providerField]: providerId,
       avatar: avatar || '',
       isSocialLogin: true,
+      isEmailVerified: true,
     });
 
     await this.userRepository.save(user);
