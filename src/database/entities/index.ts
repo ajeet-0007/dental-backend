@@ -23,3 +23,5 @@ export * from './department.entity';
 export * from './news.entity';
 export * from './log.entity';
 export * from './otp.entity';
+export * from './gallery-album.entity';
+export * from './gallery-image.entity';

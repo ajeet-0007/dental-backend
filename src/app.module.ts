@@ -26,6 +26,7 @@ import { EmailModule } from "./modules/email/email.module";
 import { ReturnsModule } from "./modules/returns/returns.module";
 import { NewsModule } from "./modules/news/news.module";
 import { BrevoModule } from "./modules/brevo/brevo.module";
+import { GalleryModule } from "./modules/gallery/gallery.module";
 
 import { AiAssistantModule } from "./modules/ai-assistant/ai-assistant.module";
 import { BulkUploadModule } from "./modules/bulk-upload/bulk-upload.module";
@@ -101,6 +102,7 @@ import { LoggerModule } from "./modules/logger/logger.module";
     ProfessionalVerificationModule,
     LoggerModule,
     BrevoModule,
+    GalleryModule,
   ],
 })
 export class AppModule {}

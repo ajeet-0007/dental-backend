@@ -23,6 +23,8 @@ import { Banner } from "../database/entities/banner.entity";
 import { Wishlist } from "../database/entities/wishlist.entity";
 import { ShippingMethod } from "../database/entities/shipping-method.entity";
 import { Log } from "../database/entities/log.entity";
+import { GalleryAlbum } from "../database/entities/gallery-album.entity";
+import { GalleryImage } from "../database/entities/gallery-image.entity";
 
 config();
 
@@ -57,6 +59,8 @@ export const AppDataSource = new DataSource({
     Log,
     Wishlist,
     ShippingMethod,
+    GalleryAlbum,
+    GalleryImage,
   ],
   migrations: [__dirname + "/../database/migrations/*{.ts,.js}"],
   synchronize: false,
