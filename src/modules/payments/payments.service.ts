@@ -4,7 +4,7 @@ import {
   BadRequestException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
+import { DataSource, EntityManager, Repository } from "typeorm";
 import { ConfigService } from "@nestjs/config";
 import Stripe from "stripe";
 import {
@@ -51,6 +51,7 @@ export class PaymentsService {
     private inventoryService: InventoryService,
     private shippingService: ShippingService,
     private shippingRocketService: ShippingRocketService,
+    private dataSource: DataSource,
   ) {
     const secretKey = this.configService.get("STRIPE_SECRET_KEY");
     if (secretKey) {
@@ -216,29 +217,52 @@ export class PaymentsService {
 
     if (paymentIntentId) {
       try {
-        // Idempotency check: has this session already been processed?
-        const existingPayment = await this.paymentRepository.findOne({
-          where: { gatewayPaymentId: session.id },
+        const result = await this.dataSource.transaction(async (manager) => {
+          const existingPayment = await manager.findOne(Payment, {
+            where: { gatewayPaymentId: session.id },
+          });
+          if (existingPayment) {
+            return null;
+          }
+
+          const paymentIntent = await manager.findOne(PaymentIntent, {
+            where: { id: paymentIntentId, userId },
+            lock: { mode: 'pessimistic_write' },
+          });
+
+          if (!paymentIntent || paymentIntent.used) {
+            return null;
+          }
+
+          return this.createOrderFromPaymentIntent(paymentIntent, session, userId!, manager);
         });
-        if (existingPayment) {
+
+        if (!result) {
           return;
         }
 
-        // Use pessimistic write lock to prevent concurrent webhook races
-        const paymentIntent = await this.paymentIntentRepository.findOne({
-          where: { id: paymentIntentId, userId },
-          lock: { mode: 'pessimistic_write' },
-        });
-
-        if (!paymentIntent) {
-          return;
+        // Post-transaction: reserve stock (has its own transaction)
+        for (const item of result.items) {
+          await this.inventoryService.reserveStock(item.productId, item.quantity);
         }
 
-        if (paymentIntent.used) {
-          return;
+        // Post-transaction: create shipment (external API calls)
+        try {
+          const fullOrder = await this.orderRepository.findOne({
+            where: { id: result.orderId },
+            relations: ['items', 'items.product', 'user'],
+          });
+          if (fullOrder) {
+            await this.createShipmentAfterPayment(fullOrder);
+          }
+        } catch (error) {
+          console.error(`Failed to create shipment for order ${result.orderId}:`, error);
+          if (error instanceof Error) {
+            console.error(`Message: ${error.message}`);
+            console.error(`Stack: ${error.stack}`);
+          }
+          errorLogger.log(error, "createShipmentAfterPayment");
         }
-
-        await this.createOrderFromPaymentIntent(paymentIntent, session, userId!);
       } catch (error) {
         console.error(`Error creating order from PaymentIntent:`, error);
         if (error instanceof Error) {
@@ -302,7 +326,8 @@ export class PaymentsService {
     paymentIntent: PaymentIntent,
     session: Stripe.Checkout.Session,
     userId: string,
-  ): Promise<string> {
+    manager: EntityManager,
+  ): Promise<{ orderId: string; items: Array<{ productId: string; quantity: number }> }> {
     const orderData = JSON.parse(paymentIntent.orderData);
 
     const orderItems = orderData.items.map((item: any) => ({
@@ -321,7 +346,7 @@ export class PaymentsService {
 
     let shippingAddress = orderData.shippingAddress;
     if (orderData.addressId) {
-      const address = await this.orderRepository.manager.findOne('Address', {
+      const address = await manager.findOne('Address', {
         where: { id: +orderData.addressId, userId },
       });
       if (address) {
@@ -340,7 +365,7 @@ export class PaymentsService {
       }
     }
 
-    const order = this.orderRepository.create({
+    const order = manager.create(Order, {
       orderNumber: generateOrderNumber(),
       userId,
       status: OrderStatus.CONFIRMED,
@@ -357,15 +382,15 @@ export class PaymentsService {
       shippingRate: orderData.shippingRate,
     });
 
-    const savedOrder = await this.orderRepository.save(order);
+    const savedOrder = await manager.save(order);
 
     const orderItemsEntities = orderItems.map((item: any) => ({
       ...item,
       orderId: savedOrder.id,
     }));
-    await this.orderItemRepository.save(orderItemsEntities);
+    await manager.save(OrderItem, orderItemsEntities);
 
-    const payment = this.paymentRepository.create({
+    const payment = manager.create(Payment, {
       orderId: savedOrder.id,
       amount: orderData.totalAmount,
       status: PaymentStatus.COMPLETED,
@@ -374,28 +399,18 @@ export class PaymentsService {
       gatewayPaymentId: session.id,
       gatewayResponse: JSON.stringify(session),
     });
-    await this.paymentRepository.save(payment);
+    await manager.save(Payment, payment);
 
     paymentIntent.used = true;
-    await this.paymentIntentRepository.save(paymentIntent);
+    await manager.save(PaymentIntent, paymentIntent);
 
-    for (const item of orderItems) {
-      await this.inventoryService.reserveStock(item.productId, item.quantity);
-    }
-
-    try {
-      const fullOrder = await this.orderRepository.findOne({
-        where: { id: savedOrder.id },
-        relations: ['items', 'items.product'],
-      });
-      if (fullOrder) {
-        await this.createShipmentAfterPayment(fullOrder);
-      }
-    } catch (error) {
-      console.error(`Failed to create shipment for order ${savedOrder.id}:`, error);
-    }
-
-    return savedOrder.id;
+    return {
+      orderId: savedOrder.id,
+      items: orderItems.map((item: any) => ({
+        productId: item.productId,
+        quantity: item.quantity,
+      })),
+    };
   }
 
   private async createShipmentAfterPayment(order: Order): Promise<void> {
@@ -563,22 +578,51 @@ export class PaymentsService {
         const paymentIntentId = session.metadata?.paymentIntentId;
 
         if (paymentIntentId) {
-          const paymentIntent = await this.paymentIntentRepository.findOne({
-            where: { id: paymentIntentId, userId },
-            lock: { mode: 'pessimistic_write' },
-          });
-
-          if (!paymentIntent) {
-            return { success: false, error: "PaymentIntent not found" };
-          }
-
-          if (paymentIntent.used) {
-            return { success: true };
-          }
-
           try {
-            const orderId = await this.createOrderFromPaymentIntent(paymentIntent, session, userId!);
-            return { success: true, orderId };
+            const result = await this.dataSource.transaction(async (manager) => {
+              const paymentIntent = await manager.findOne(PaymentIntent, {
+                where: { id: paymentIntentId, userId },
+                lock: { mode: 'pessimistic_write' },
+              });
+
+              if (!paymentIntent) {
+                return null;
+              }
+
+              if (paymentIntent.used) {
+                return { alreadyUsed: true };
+              }
+
+              return this.createOrderFromPaymentIntent(paymentIntent, session, userId!, manager);
+            });
+
+            if (!result) {
+              return { success: false, error: "PaymentIntent not found" };
+            }
+
+            if ('alreadyUsed' in result) {
+              return { success: true };
+            }
+
+            // Post-transaction: reserve stock (has its own transaction)
+            for (const item of result.items) {
+              await this.inventoryService.reserveStock(item.productId, item.quantity);
+            }
+
+            // Post-transaction: create shipment (external API calls)
+            try {
+              const fullOrder = await this.orderRepository.findOne({
+                where: { id: result.orderId },
+                relations: ['items', 'items.product', 'user'],
+              });
+              if (fullOrder) {
+                await this.createShipmentAfterPayment(fullOrder);
+              }
+            } catch (error) {
+              console.error(`Failed to create shipment for order ${result.orderId}:`, error);
+            }
+
+            return { success: true, orderId: result.orderId };
           } catch (error) {
             console.error("Error creating order from PaymentIntent:", error);
             return { success: false, error: "Failed to create order" };
