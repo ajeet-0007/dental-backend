@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { Inventory, Product } from '../../database/entities';
 import { CreateInventoryDto, UpdateInventoryDto } from './dto/inventory.dto';
 
@@ -11,6 +11,7 @@ export class InventoryService {
     private inventoryRepository: Repository<Inventory>,
     @InjectRepository(Product)
     private productRepository: Repository<Product>,
+    private dataSource: DataSource,
   ) {}
 
   async create(createInventoryDto: CreateInventoryDto): Promise<Inventory> {
@@ -74,26 +75,29 @@ export class InventoryService {
   }
 
   async reserveStock(productId: string, quantity: number): Promise<boolean> {
-    const inventories = await this.inventoryRepository.find({
-      where: { productId: +productId },
-    });
+    return this.dataSource.transaction(async (manager) => {
+      const inventories = await manager.find(Inventory, {
+        where: { productId: +productId },
+        lock: { mode: 'pessimistic_write' },
+      });
 
-    let remaining = quantity;
+      let remaining = quantity;
 
-    for (const inventory of inventories) {
-      const available = inventory.quantity - inventory.reservedQuantity;
-      if (available >= remaining) {
-        inventory.reservedQuantity += remaining;
-        await this.inventoryRepository.save(inventory);
-        return true;
-      } else {
-        inventory.reservedQuantity = inventory.quantity;
-        await this.inventoryRepository.save(inventory);
-        remaining -= available;
+      for (const inventory of inventories) {
+        const available = inventory.quantity - inventory.reservedQuantity;
+        if (available >= remaining) {
+          inventory.reservedQuantity += remaining;
+          await manager.save(inventory);
+          return true;
+        } else {
+          inventory.reservedQuantity = inventory.quantity;
+          await manager.save(inventory);
+          remaining -= available;
+        }
       }
-    }
 
-    return false;
+      return false;
+    });
   }
 
   async releaseStock(productId: string, quantity: number): Promise<void> {

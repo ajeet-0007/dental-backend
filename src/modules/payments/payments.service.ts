@@ -15,6 +15,8 @@ import {
   OrderStatus,
   OrderItem,
   PaymentIntent,
+  Product,
+  ProductVariant,
 } from "../../database/entities";
 import { CreatePaymentDto, CreatePaymentSessionDto } from "./dto/payment.dto";
 import { InventoryService } from "../inventory/inventory.service";
@@ -28,6 +30,10 @@ import { generateOrderNumber } from "../../common/utils/slugify";
 export class PaymentsService {
   private stripe: Stripe;
 
+  private get taxRate(): number {
+    return parseFloat(this.configService.get('TAX_RATE_DEFAULT', '18')) / 100;
+  }
+
   constructor(
     @InjectRepository(Payment)
     private paymentRepository: Repository<Payment>,
@@ -37,6 +43,10 @@ export class PaymentsService {
     private orderItemRepository: Repository<OrderItem>,
     @InjectRepository(PaymentIntent)
     private paymentIntentRepository: Repository<PaymentIntent>,
+    @InjectRepository(Product)
+    private productRepository: Repository<Product>,
+    @InjectRepository(ProductVariant)
+    private productVariantRepository: Repository<ProductVariant>,
     private configService: ConfigService,
     private inventoryService: InventoryService,
     private shippingService: ShippingService,
@@ -52,8 +62,41 @@ export class PaymentsService {
     userId: string,
     createPaymentSessionDto: CreatePaymentSessionDto,
   ): Promise<{ sessionId: string; url: string }> {
+    if (!this.stripe) {
+      throw new Error("Stripe not configured");
+    }
+
     const frontendUrl =
       this.configService.get("FRONTEND_URL") || "http://localhost:5173";
+
+    // Validate prices against database
+    for (const item of createPaymentSessionDto.items) {
+      let dbPrice: number | null = null;
+
+      if (item.productVariantId) {
+        const variant = await this.productVariantRepository.findOne({
+          where: { id: item.productVariantId },
+        });
+        if (!variant) {
+          throw new BadRequestException(`Variant not found: ${item.productVariantId}`);
+        }
+        dbPrice = variant.sellingPrice;
+      } else {
+        const product = await this.productRepository.findOne({
+          where: { id: +item.productId },
+        });
+        if (!product) {
+          throw new BadRequestException(`Product not found: ${item.productId}`);
+        }
+        dbPrice = product.sellingPrice;
+      }
+
+      if (Math.abs(item.unitPrice - dbPrice) > 0.01) {
+        throw new BadRequestException(
+          `Price mismatch for ${item.productName}: client sent ${item.unitPrice}, actual price is ${dbPrice}`,
+        );
+      }
+    }
 
     // Build line items from the cart items passed in, with GST and shipping distributed proportionally
     const { subtotal, taxAmount, shippingAmount } = createPaymentSessionDto;
@@ -86,17 +129,20 @@ export class PaymentsService {
     const savedIntent = await this.paymentIntentRepository.save(paymentIntent);
 
     // Store only paymentIntentId and userId in Stripe metadata (well under 500 chars)
-    const session = await this.stripe.checkout.sessions.create({
-      payment_method_types: ["card"],
-      line_items: lineItems,
-      mode: "payment",
-      success_url: `${frontendUrl}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${frontendUrl}/checkout?payment=cancelled`,
-      metadata: {
-        paymentIntentId: savedIntent.id,
-        userId,
+    const session = await this.stripe.checkout.sessions.create(
+      {
+        payment_method_types: ["card"],
+        line_items: lineItems,
+        mode: "payment",
+        success_url: `${frontendUrl}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${frontendUrl}/checkout?payment=cancelled`,
+        metadata: {
+          paymentIntentId: savedIntent.id,
+          userId,
+        },
       },
-    });
+      { idempotencyKey: savedIntent.id },
+    );
 
     let checkoutUrl = session.url || "";
 
@@ -168,17 +214,23 @@ export class PaymentsService {
     const userId = session.metadata?.userId;
     const paymentIntentId = session.metadata?.paymentIntentId;
 
-
-    // New flow: order data in PaymentIntent table, create order now
     if (paymentIntentId) {
       try {
-        // Fetch order data from PaymentIntent table
+        // Idempotency check: has this session already been processed?
+        const existingPayment = await this.paymentRepository.findOne({
+          where: { gatewayPaymentId: session.id },
+        });
+        if (existingPayment) {
+          return;
+        }
+
+        // Use pessimistic write lock to prevent concurrent webhook races
         const paymentIntent = await this.paymentIntentRepository.findOne({
           where: { id: paymentIntentId, userId },
+          lock: { mode: 'pessimistic_write' },
         });
 
         if (!paymentIntent) {
-          console.error(`PaymentIntent not found: ${paymentIntentId}`);
           return;
         }
 
@@ -186,107 +238,7 @@ export class PaymentsService {
           return;
         }
 
-        const orderData = JSON.parse(paymentIntent.orderData);
-
-        // Create order items from the items in PaymentIntent
-        const orderItems = orderData.items.map((item: any) => ({
-          productId: item.productId,
-          productVariantId: item.productVariantId,
-          productName: item.productName,
-          productImage: item.productImage || '',
-          sku: item.sku,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          sellingPrice: item.unitPrice,
-          taxAmount: Math.round(item.unitPrice * item.quantity * 0.18 * 100) / 100,
-          discountAmount: 0,
-          totalAmount: item.unitPrice * item.quantity + Math.round(item.unitPrice * item.quantity * 0.18 * 100) / 100,
-        }));
-
-        // Parse shipping address if it's a string
-        let shippingAddress = orderData.shippingAddress;
-        if (orderData.addressId) {
-          const address = await this.orderRepository.manager.findOne('Address', {
-            where: { id: +orderData.addressId, userId },
-          });
-          if (address) {
-            shippingAddress = JSON.stringify({
-              firstName: (address as any).name,
-              lastName: '',
-              name: (address as any).name,
-              addressLine1: (address as any).addressLine1,
-              addressLine2: (address as any).addressLine2,
-              city: (address as any).city,
-              state: (address as any).state,
-              pincode: (address as any).pincode,
-              country: 'India',
-              phone: (address as any).phone,
-            });
-          }
-        }
-
-        // Create the order
-        const order = this.orderRepository.create({
-          orderNumber: generateOrderNumber(),
-          userId,
-          status: OrderStatus.CONFIRMED,
-          subtotal: orderData.subtotal,
-          taxAmount: orderData.taxAmount,
-          shippingAmount: orderData.shippingAmount,
-          discountAmount: 0,
-          totalAmount: orderData.totalAmount,
-          shippingAddress,
-          customerNote: orderData.customerNote,
-          couponCode: orderData.couponCode,
-          selectedCourier: orderData.selectedCourier,
-          selectedService: orderData.selectedService,
-          shippingRate: orderData.shippingRate,
-        });
-
-        const savedOrder = await this.orderRepository.save(order);
-
-        // Save order items
-        const orderItemsEntities = orderItems.map((item: any) => ({
-          ...item,
-          orderId: savedOrder.id,
-        }));
-        await this.orderItemRepository.save(orderItemsEntities);
-
-        // Create payment record
-        const payment = this.paymentRepository.create({
-          orderId: savedOrder.id,
-          amount: orderData.totalAmount,
-          status: PaymentStatus.COMPLETED,
-          method: PaymentMethod.CARD,
-          transactionId: (session.payment_intent as string) || '',
-          gatewayPaymentId: session.id,
-          gatewayResponse: JSON.stringify(session),
-        });
-        await this.paymentRepository.save(payment);
-
-        // Mark PaymentIntent as used
-        paymentIntent.used = true;
-        await this.paymentIntentRepository.save(paymentIntent);
-
-        // Reserve inventory
-        for (const item of orderItems) {
-          await this.inventoryService.reserveStock(item.productId, item.quantity);
-        }
-
-        // Create shipment
-        try {
-          const fullOrder = await this.orderRepository.findOne({
-            where: { id: savedOrder.id },
-            relations: ['items', 'items.product'],
-          });
-          if (fullOrder) {
-            await this.createShipmentAfterPayment(fullOrder);
-          }
-        } catch (error) {
-          console.error(`Failed to create shipment for order ${savedOrder.id}:`, error);
-        }
-
-        return;
+        await this.createOrderFromPaymentIntent(paymentIntent, session, userId!);
       } catch (error) {
         console.error(`Error creating order from PaymentIntent:`, error);
         if (error instanceof Error) {
@@ -295,6 +247,7 @@ export class PaymentsService {
         }
         throw error;
       }
+      return;
     }
 
     // Legacy flow: order already exists (for backward compatibility)
@@ -305,7 +258,6 @@ export class PaymentsService {
     const payment = await this.paymentRepository.findOne({
       where: { orderId },
     });
-
 
     if (!payment) {
       return;
@@ -322,9 +274,6 @@ export class PaymentsService {
       relations: ["items"],
     });
 
-    if (order) {
-    }
-
     if (order && order.status === OrderStatus.PENDING_PAYMENT) {
       order.status = OrderStatus.CONFIRMED;
       await this.orderRepository.save(order);
@@ -336,7 +285,6 @@ export class PaymentsService {
         );
       }
 
-      // Auto-create shipment after payment success
       try {
         await this.createShipmentAfterPayment(order);
       } catch (error) {
@@ -346,10 +294,108 @@ export class PaymentsService {
           console.error(`Error stack: ${error.stack}`);
           errorLogger.log(error, "createShipmentAfterPayment");
         }
-        // Don't throw - order is already confirmed, shipment can be created manually
       }
-    } else {
     }
+  }
+
+  private async createOrderFromPaymentIntent(
+    paymentIntent: PaymentIntent,
+    session: Stripe.Checkout.Session,
+    userId: string,
+  ): Promise<string> {
+    const orderData = JSON.parse(paymentIntent.orderData);
+
+    const orderItems = orderData.items.map((item: any) => ({
+      productId: item.productId,
+      productVariantId: item.productVariantId,
+      productName: item.productName,
+      productImage: item.productImage || '',
+      sku: item.sku,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      sellingPrice: item.unitPrice,
+      taxAmount: Math.round(item.unitPrice * item.quantity * this.taxRate * 100) / 100,
+      discountAmount: 0,
+      totalAmount: item.unitPrice * item.quantity + Math.round(item.unitPrice * item.quantity * this.taxRate * 100) / 100,
+    }));
+
+    let shippingAddress = orderData.shippingAddress;
+    if (orderData.addressId) {
+      const address = await this.orderRepository.manager.findOne('Address', {
+        where: { id: +orderData.addressId, userId },
+      });
+      if (address) {
+        shippingAddress = JSON.stringify({
+          firstName: (address as any).name,
+          lastName: '',
+          name: (address as any).name,
+          addressLine1: (address as any).addressLine1,
+          addressLine2: (address as any).addressLine2,
+          city: (address as any).city,
+          state: (address as any).state,
+          pincode: (address as any).pincode,
+          country: 'India',
+          phone: (address as any).phone,
+        });
+      }
+    }
+
+    const order = this.orderRepository.create({
+      orderNumber: generateOrderNumber(),
+      userId,
+      status: OrderStatus.CONFIRMED,
+      subtotal: orderData.subtotal,
+      taxAmount: orderData.taxAmount,
+      shippingAmount: orderData.shippingAmount,
+      discountAmount: 0,
+      totalAmount: orderData.totalAmount,
+      shippingAddress,
+      customerNote: orderData.customerNote,
+      couponCode: orderData.couponCode,
+      selectedCourier: orderData.selectedCourier,
+      selectedService: orderData.selectedService,
+      shippingRate: orderData.shippingRate,
+    });
+
+    const savedOrder = await this.orderRepository.save(order);
+
+    const orderItemsEntities = orderItems.map((item: any) => ({
+      ...item,
+      orderId: savedOrder.id,
+    }));
+    await this.orderItemRepository.save(orderItemsEntities);
+
+    const payment = this.paymentRepository.create({
+      orderId: savedOrder.id,
+      amount: orderData.totalAmount,
+      status: PaymentStatus.COMPLETED,
+      method: PaymentMethod.CARD,
+      transactionId: (session.payment_intent as string) || '',
+      gatewayPaymentId: session.id,
+      gatewayResponse: JSON.stringify(session),
+    });
+    await this.paymentRepository.save(payment);
+
+    paymentIntent.used = true;
+    await this.paymentIntentRepository.save(paymentIntent);
+
+    for (const item of orderItems) {
+      await this.inventoryService.reserveStock(item.productId, item.quantity);
+    }
+
+    try {
+      const fullOrder = await this.orderRepository.findOne({
+        where: { id: savedOrder.id },
+        relations: ['items', 'items.product'],
+      });
+      if (fullOrder) {
+        await this.createShipmentAfterPayment(fullOrder);
+      }
+    } catch (error) {
+      console.error(`Failed to create shipment for order ${savedOrder.id}:`, error);
+    }
+
+    return savedOrder.id;
   }
 
   private async createShipmentAfterPayment(order: Order): Promise<void> {
@@ -431,6 +477,8 @@ export class PaymentsService {
         height: totalHeight,
       });
     } catch (error) {
+      console.error("ShippingRocket rate calculation failed:", error);
+      errorLogger.log(error, "ShippingRocket rate calculation");
     }
 
     let selectedCourier = 'Standard';
@@ -493,7 +541,6 @@ export class PaymentsService {
     sessionId: string,
   ): Promise<{ success: boolean; orderId?: string; error?: string }> {
 
-    // First, check if we already have a payment with this session ID
     const existingPayment = await this.paymentRepository.findOne({
       where: { gatewayPaymentId: sessionId },
       relations: ["order"],
@@ -503,9 +550,7 @@ export class PaymentsService {
       return { success: true, orderId: existingPayment.order.id };
     }
 
-    // No existing payment found, verify with Stripe
     if (!this.stripe) {
-      console.error("Stripe not initialized");
       return { success: false, error: "Stripe not configured" };
     }
 
@@ -518,9 +563,9 @@ export class PaymentsService {
         const paymentIntentId = session.metadata?.paymentIntentId;
 
         if (paymentIntentId) {
-          // Fetch order data from PaymentIntent table
           const paymentIntent = await this.paymentIntentRepository.findOne({
             where: { id: paymentIntentId, userId },
+            lock: { mode: 'pessimistic_write' },
           });
 
           if (!paymentIntent) {
@@ -531,111 +576,12 @@ export class PaymentsService {
             return { success: true };
           }
 
-          const orderData = JSON.parse(paymentIntent.orderData);
-
-          // Create order now (same logic as webhook)
           try {
-            const orderItems = orderData.items.map((item: any) => ({
-              productId: item.productId,
-              productVariantId: item.productVariantId,
-              productName: item.productName,
-              productImage: item.productImage || '',
-              sku: item.sku,
-              quantity: item.quantity,
-              unitPrice: item.unitPrice,
-              sellingPrice: item.unitPrice,
-              taxAmount: Math.round(item.unitPrice * item.quantity * 0.18 * 100) / 100,
-              discountAmount: 0,
-              totalAmount: item.unitPrice * item.quantity + Math.round(item.unitPrice * item.quantity * 0.18 * 100) / 100,
-            }));
-
-            // Parse shipping address if it's a string
-            let shippingAddress = orderData.shippingAddress;
-            if (orderData.addressId) {
-              const address = await this.orderRepository.manager.findOne('Address', {
-                where: { id: +orderData.addressId, userId },
-              });
-              if (address) {
-                shippingAddress = JSON.stringify({
-                  firstName: (address as any).name,
-                  lastName: '',
-                  name: (address as any).name,
-                  addressLine1: (address as any).addressLine1,
-                  addressLine2: (address as any).addressLine2,
-                  city: (address as any).city,
-                  state: (address as any).state,
-                  pincode: (address as any).pincode,
-                  country: 'India',
-                  phone: (address as any).phone,
-                });
-              }
-            }
-
-            // Create the order
-            const order = this.orderRepository.create({
-              orderNumber: generateOrderNumber(),
-              userId,
-              status: OrderStatus.CONFIRMED,
-              subtotal: orderData.subtotal,
-              taxAmount: orderData.taxAmount,
-              shippingAmount: orderData.shippingAmount,
-              discountAmount: 0,
-              totalAmount: orderData.totalAmount,
-              shippingAddress,
-              customerNote: orderData.customerNote,
-              couponCode: orderData.couponCode,
-              selectedCourier: orderData.selectedCourier,
-              selectedService: orderData.selectedService,
-              shippingRate: orderData.shippingRate,
-            });
-
-            const savedOrder = await this.orderRepository.save(order);
-
-            // Save order items
-            const orderItemsEntities = orderItems.map((item: any) => ({
-              ...item,
-              orderId: savedOrder.id,
-            }));
-            await this.orderItemRepository.save(orderItemsEntities);
-
-            // Create payment record
-            const payment = this.paymentRepository.create({
-              orderId: savedOrder.id,
-              amount: orderData.totalAmount,
-              status: PaymentStatus.COMPLETED,
-              method: PaymentMethod.CARD,
-              transactionId: (session.payment_intent as string) || '',
-              gatewayPaymentId: session.id,
-              gatewayResponse: JSON.stringify(session),
-            });
-            await this.paymentRepository.save(payment);
-
-            // Mark PaymentIntent as used
-            paymentIntent.used = true;
-            await this.paymentIntentRepository.save(paymentIntent);
-
-            // Reserve inventory
-            for (const item of orderItems) {
-              await this.inventoryService.reserveStock(item.productId, item.quantity);
-            }
-
-            // Create shipment
-            try {
-              const fullOrder = await this.orderRepository.findOne({
-                where: { id: savedOrder.id },
-                relations: ['items', 'items.product'],
-              });
-              if (fullOrder) {
-                await this.createShipmentAfterPayment(fullOrder);
-              }
-            } catch (error) {
-              console.error(`Failed to create shipment for order ${savedOrder.id}:`, error);
-            }
-
-            return { success: true, orderId: savedOrder.id };
+            const orderId = await this.createOrderFromPaymentIntent(paymentIntent, session, userId!);
+            return { success: true, orderId };
           } catch (error) {
             console.error("Error creating order from PaymentIntent:", error);
-            return { success: false, error: "Failed to create order from PaymentIntent" };
+            return { success: false, error: "Failed to create order" };
           }
         }
 
@@ -647,7 +593,6 @@ export class PaymentsService {
         error: `Payment status: ${session.payment_status}`,
       };
     } catch (error: any) {
-      console.error("Error verifying payment:", error.message);
       return { success: false, error: error.message };
     }
   }
