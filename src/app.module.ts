@@ -38,7 +38,7 @@ import { LoggerModule } from "./modules/logger/logger.module";
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: ".env",
+      ignoreEnvFile: process.env.VERCEL === '1',
     }),
     GoogleRecaptchaModule.forRootAsync({
       imports: [ConfigModule],

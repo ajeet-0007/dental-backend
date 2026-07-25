@@ -140,7 +140,7 @@ export class AuthController {
   googleAuthCallback(@Req() req: any, @Res() res: Response) {
     const { user, accessToken, refreshToken } = req.user;
     let frontendUrl =
-      process.env.FRONTEND_URL || 'http://localhost:5173';
+      this.configService.get('FRONTEND_URL') || 'http://localhost:5173';
     frontendUrl = frontendUrl.replace(/\/$/, '');
     const tokenPayload = Buffer.from(
       JSON.stringify({ accessToken, refreshToken, user }),
@@ -161,7 +161,7 @@ export class AuthController {
   facebookAuthCallback(@Req() req: any, @Res() res: Response) {
     const { user, accessToken, refreshToken } = req.user;
     let frontendUrl =
-      process.env.FRONTEND_URL || 'http://localhost:5173';
+      this.configService.get('FRONTEND_URL') || 'http://localhost:5173';
     frontendUrl = frontendUrl.replace(/\/$/, '');
     const tokenPayload = Buffer.from(
       JSON.stringify({ accessToken, refreshToken, user }),
@@ -182,7 +182,7 @@ export class AuthController {
   appleAuthCallback(@Req() req: any, @Res() res: Response) {
     const { user, accessToken, refreshToken } = req.user;
     let frontendUrl =
-      process.env.FRONTEND_URL || 'http://localhost:5173';
+      this.configService.get('FRONTEND_URL') || 'http://localhost:5173';
     frontendUrl = frontendUrl.replace(/\/$/, '');
     const tokenPayload = Buffer.from(
       JSON.stringify({ accessToken, refreshToken, user }),
