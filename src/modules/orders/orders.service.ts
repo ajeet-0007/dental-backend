@@ -122,15 +122,15 @@ export class OrdersService {
         quantity: cartItem.quantity,
         unitPrice: price,
         sellingPrice: price,
-        taxAmount: Math.round(itemTotal * 0.18 * 100) / 100,
+        taxAmount: 0,
         discountAmount: 0,
-        totalAmount: itemTotal + Math.round(itemTotal * 0.18 * 100) / 100,
+        totalAmount: itemTotal,
       });
     }
 
     const shippingAmount = createOrderDto.shippingRate || 0;
-    const taxAmount = Math.round(subtotal * 0.18 * 100) / 100;
-    const totalAmount = subtotal + shippingAmount + taxAmount;
+    const taxAmount = 0;
+    const totalAmount = subtotal + shippingAmount;
     const isCOD = createOrderDto.paymentMethod === "cod";
 
     const queryRunner = this.dataSource.createQueryRunner();

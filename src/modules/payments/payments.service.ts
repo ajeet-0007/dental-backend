@@ -100,13 +100,12 @@ export class PaymentsService {
     }
 
     // Build line items from the cart items passed in, with GST and shipping distributed proportionally
-    const { subtotal, taxAmount, shippingAmount } = createPaymentSessionDto;
+    const { subtotal, shippingAmount } = createPaymentSessionDto;
     const lineItems = createPaymentSessionDto.items.map(item => {
       const lineTotal = item.unitPrice * item.quantity;
       const lineShare = subtotal > 0 ? lineTotal / subtotal : 0;
-      const lineTax = taxAmount * lineShare;
       const lineShipping = shippingAmount * lineShare;
-      const unitWithTaxAndShipping = item.unitPrice + (lineTax + lineShipping) / item.quantity;
+      const unitWithShipping = item.unitPrice + lineShipping / item.quantity;
 
       return {
         price_data: {
@@ -115,7 +114,7 @@ export class PaymentsService {
             name: item.productName,
             images: item.productImage ? [item.productImage] : undefined,
           },
-          unit_amount: Math.round(unitWithTaxAndShipping * 100),
+          unit_amount: Math.round(unitWithShipping * 100),
         },
         quantity: item.quantity,
       };
@@ -339,9 +338,9 @@ export class PaymentsService {
       quantity: item.quantity,
       unitPrice: item.unitPrice,
       sellingPrice: item.unitPrice,
-      taxAmount: Math.round(item.unitPrice * item.quantity * this.taxRate * 100) / 100,
+      taxAmount: 0,
       discountAmount: 0,
-      totalAmount: item.unitPrice * item.quantity + Math.round(item.unitPrice * item.quantity * this.taxRate * 100) / 100,
+      totalAmount: item.unitPrice * item.quantity,
     }));
 
     let shippingAddress = orderData.shippingAddress;
