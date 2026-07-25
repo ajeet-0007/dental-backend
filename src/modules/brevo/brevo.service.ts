@@ -30,14 +30,14 @@ export class BrevoService {
 
       const senderEmail =
         this.configService.get<string>('BREVO_SENDER_EMAIL') ||
-        'noreply@dentalkart.com';
+        'support@dentzoo.com';
       const senderName =
-        this.configService.get<string>('BREVO_SENDER_NAME') || 'Dentalkart';
+        this.configService.get<string>('BREVO_SENDER_NAME') || 'Dentzoo';
 
       const subject =
         type === 'reset'
-          ? 'Reset Your Dentalkart Password'
-          : 'Your Dentalkart Verification Code';
+          ? 'Reset Your Dentzoo Password'
+          : 'Your Dentzoo Verification Code';
 
       const htmlContent = this.getOtpHtml(otp, type);
 
@@ -71,12 +71,12 @@ export class BrevoService {
       type === 'reset' ? 'Password Reset Request' : 'Verification Code';
     const message =
       type === 'reset'
-        ? 'You requested to reset your Dentalkart password. Use the code below:'
+        ? 'You requested to reset your Dentzoo password. Use the code below:'
         : 'Use the following code to verify your email:';
 
     return `
       <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
-        <h2 style="color: #333; text-align: center;">Dentalkart</h2>
+        <h2 style="color: #333; text-align: center;">Dentzoo</h2>
         <h3 style="color: #555; text-align: center;">${heading}</h3>
         <p style="color: #666; font-size: 14px;">${message}</p>
         <div style="text-align: center; margin: 30px 0;">

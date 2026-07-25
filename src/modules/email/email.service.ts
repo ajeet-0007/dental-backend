@@ -28,7 +28,7 @@ export class EmailService {
     const smtpPort = this.configService.get<number>('SMTP_PORT') || 587;
     const smtpUser = this.configService.get<string>('SMTP_USER');
     const smtpPassword = this.configService.get<string>('SMTP_PASSWORD');
-    const smtpFromEmail = this.configService.get<string>('SMTP_FROM_EMAIL') || 'noreply@dentalkart.com';
+      const smtpFromEmail = this.configService.get<string>('SMTP_FROM_EMAIL') || 'noreply@dentzoo.com';
 
     // Check if SMTP credentials are configured
     if (!smtpUser || !smtpPassword) {
@@ -80,7 +80,7 @@ export class EmailService {
       }
 
       const html = template(options.context);
-      const smtpFromEmail = this.configService.get<string>('SMTP_FROM_EMAIL') || 'noreply@dentalkart.com';
+    const smtpFromEmail = this.configService.get<string>('SMTP_FROM_EMAIL') || 'noreply@dentzoo.com';
 
       const mailOptions = {
         from: smtpFromEmail,
@@ -148,7 +148,7 @@ export class EmailService {
         courierName: shipmentData.courierName,
         estimatedDelivery: shipmentData.estimatedDelivery.toLocaleDateString('en-IN'),
         labelUrl: shipmentData.labelUrl,
-        trackingUrl: `https://dentalkart.com/track/${shipmentData.trackingNumber}`,
+        trackingUrl: `https://dentzoo.com/track/${shipmentData.trackingNumber}`,
         year: new Date().getFullYear(),
       },
     });
@@ -189,7 +189,7 @@ export class EmailService {
         location: shipmentData.location,
         courierName: shipmentData.courierName,
         estimatedDelivery: shipmentData.estimatedDelivery?.toLocaleDateString('en-IN'),
-        trackingUrl: `https://dentalkart.com/track/${shipmentData.trackingNumber}`,
+        trackingUrl: `https://dentzoo.com/track/${shipmentData.trackingNumber}`,
         year: new Date().getFullYear(),
       },
     });
@@ -216,7 +216,7 @@ export class EmailService {
         trackingNumber: shipmentData.trackingNumber,
         courierName: shipmentData.courierName,
         location: shipmentData.location,
-        trackingUrl: `https://dentalkart.com/track/${shipmentData.trackingNumber}`,
+        trackingUrl: `https://dentzoo.com/track/${shipmentData.trackingNumber}`,
         year: new Date().getFullYear(),
       },
     });
@@ -243,7 +243,7 @@ export class EmailService {
         trackingNumber: shipmentData.trackingNumber,
         courierName: shipmentData.courierName,
         deliveredDate: shipmentData.deliveredDate.toLocaleDateString('en-IN'),
-        feedbackUrl: `https://dentalkart.com/orders/${shipmentData.orderNumber}/feedback`,
+        feedbackUrl: `https://dentzoo.com/orders/${shipmentData.orderNumber}/feedback`,
         year: new Date().getFullYear(),
       },
     });
@@ -269,7 +269,7 @@ export class EmailService {
         orderNumber: returnData.orderNumber,
         trackingNumber: returnData.trackingNumber,
         returnReason: returnData.returnReason,
-        returnInstructionUrl: returnData.returnInstructionUrl || 'https://dentalkart.com/returns/instructions',
+        returnInstructionUrl: returnData.returnInstructionUrl || 'https://dentzoo.com/returns/instructions',
         year: new Date().getFullYear(),
       },
     });

@@ -69,8 +69,8 @@ export class ShippingRocketService implements OnModuleInit {
     this.warehouseState = this.configService.get<string>('WAREHOUSE_STATE') || 'Uttar Pradesh';
     this.warehouseAddress = this.configService.get<string>('WAREHOUSE_ADDRESS_LINE1') || 'Warehouse Address';
     this.warehousePhone = this.configService.get<string>('WAREHOUSE_PHONE') || '9999999999';
-    this.warehouseEmail = this.configService.get<string>('WAREHOUSE_EMAIL') || 'warehouse@dentalkart.com';
-    this.pickupLocationName = this.configService.get<string>('SHIPPINGROCKET_PICKUP_LOCATION') || 'Dentalkart Warehouse';
+    this.warehouseEmail = this.configService.get<string>('WAREHOUSE_EMAIL') || 'warehouse@dentzoo.com';
+    this.pickupLocationName = this.configService.get<string>('SHIPPINGROCKET_PICKUP_LOCATION') || 'Dentzoo Warehouse';
 
     this.logger.log(`ShipRocket Config - Email: ${this.apiEmail}, URL: ${this.apiUrl}, Warehouse: ${this.warehousePincode}, Pickup Location: ${this.pickupLocationName}`);
 

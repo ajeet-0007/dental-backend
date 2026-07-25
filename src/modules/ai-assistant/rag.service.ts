@@ -30,7 +30,7 @@ export class RagService {
     private vectorService: VectorService,
     private configService: ConfigService,
   ) {
-    this.systemPrompt = `You are a helpful dental products assistant for Dentalkart, an online dental supplies store. 
+    this.systemPrompt = `You are a helpful dental products assistant for Dentzoo, an online dental supplies store. 
 Your role is to help customers find the right products, answer questions about dental supplies, and provide helpful recommendations.
 You have access to product information retrieved from our database.
 

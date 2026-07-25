@@ -48,8 +48,8 @@ async function bootstrap() {
   app.useGlobalFilters(new AllExceptionsFilter(logService));
 
   const config = new DocumentBuilder()
-    .setTitle("Dentalkart API")
-    .setDescription("Dentalkart E-commerce API")
+    .setTitle("Dentzoo API")
+    .setDescription("Dentzoo E-commerce API")
     .setVersion("1.0")
     .addBearerAuth()
     .build();

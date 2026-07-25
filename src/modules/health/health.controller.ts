@@ -14,7 +14,7 @@ export class HealthController {
   @Get()
   root() {
     return {
-      name: "Dentalkart API",
+      name: "Dentzoo API",
       version: "1.0.0",
       docs: "/api/docs",
     };
