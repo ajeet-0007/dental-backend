@@ -17,6 +17,7 @@ import {
   PaymentIntent,
   Product,
   ProductVariant,
+  Cart,
 } from "../../database/entities";
 import { CreatePaymentDto, CreatePaymentSessionDto } from "./dto/payment.dto";
 import { InventoryService } from "../inventory/inventory.service";
@@ -47,6 +48,8 @@ export class PaymentsService {
     private productRepository: Repository<Product>,
     @InjectRepository(ProductVariant)
     private productVariantRepository: Repository<ProductVariant>,
+    @InjectRepository(Cart)
+    private cartRepository: Repository<Cart>,
     private configService: ConfigService,
     private inventoryService: InventoryService,
     private shippingService: ShippingService,
@@ -238,6 +241,10 @@ export class PaymentsService {
 
         if (!result) {
           return;
+        }
+
+        if (userId) {
+          await this.cartRepository.delete({ userId });
         }
 
         // Post-transaction: reserve stock (has its own transaction)
@@ -619,6 +626,10 @@ export class PaymentsService {
               }
             } catch (error) {
               console.error(`Failed to create shipment for order ${result.orderId}:`, error);
+            }
+
+            if (userId) {
+              await this.cartRepository.delete({ userId });
             }
 
             return { success: true, orderId: result.orderId };
