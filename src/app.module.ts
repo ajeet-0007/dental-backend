@@ -33,6 +33,7 @@ import { BulkUploadModule } from "./modules/bulk-upload/bulk-upload.module";
 import { EntityBulkUploadModule } from "./modules/entity-bulk-upload/entity-bulk-upload.module";
 import { ProfessionalVerificationModule } from "./modules/professional-verification/professional-verification.module";
 import { LoggerModule } from "./modules/logger/logger.module";
+import { SupportModule } from "./modules/support/support.module";
 
 @Module({
   imports: [
@@ -103,6 +104,7 @@ import { LoggerModule } from "./modules/logger/logger.module";
     LoggerModule,
     BrevoModule,
     GalleryModule,
+    SupportModule,
   ],
 })
 export class AppModule {}

@@ -274,4 +274,48 @@ export class EmailService {
       },
     });
   }
+
+  async sendSupportEmail(data: {
+    name: string;
+    email: string;
+    subject: string;
+    message: string;
+    userId?: string;
+  }): Promise<boolean> {
+    if (!this.transporter) {
+      this.logger.warn('Email transporter not configured - skipping support email');
+      return false;
+    }
+
+    try {
+      const smtpFromEmail = this.configService.get<string>('SMTP_FROM_EMAIL') || 'noreply@dentzoo.com';
+      const html = `
+        <h2>New Support Message</h2>
+        <table style="border-collapse:collapse;width:100%;max-width:600px;">
+          <tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Name</td><td style="padding:8px;border:1px solid #ddd;">${data.name}</td></tr>
+          <tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Email</td><td style="padding:8px;border:1px solid #ddd;">${data.email}</td></tr>
+          <tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Subject</td><td style="padding:8px;border:1px solid #ddd;">${data.subject}</td></tr>
+          ${data.userId ? `<tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">User ID</td><td style="padding:8px;border:1px solid #ddd;">${data.userId}</td></tr>` : ''}
+        </table>
+        <h3>Message:</h3>
+        <p style="padding:12px;background:#f5f5f5;border-radius:4px;">${data.message.replace(/\n/g, '<br>')}</p>
+        <hr>
+        <p style="color:#888;font-size:12px;">Sent from the Dentzoo Help & Support form</p>
+      `;
+
+      const mailOptions = {
+        from: smtpFromEmail,
+        to: 'support@dentzoo.com',
+        subject: `Support Message: ${data.subject} - from ${data.name}`,
+        html,
+      };
+
+      const result = await this.transporter.sendMail(mailOptions);
+      this.logger.log(`Support email sent to support@dentzoo.com: ${result.messageId}`);
+      return true;
+    } catch (error) {
+      this.logger.error('Failed to send support email:', error);
+      return false;
+    }
+  }
 }
