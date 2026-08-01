@@ -41,7 +41,7 @@ export class ReviewsController {
   @Post()
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Create a review (only for purchased products)' })
+  @ApiOperation({ summary: 'Create a review' })
   async create(
     @Request() req: any,
     @Body() createReviewDto: CreateReviewDto,

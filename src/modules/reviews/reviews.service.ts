@@ -5,10 +5,8 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, LessThanOrEqual, MoreThanOrEqual } from 'typeorm';
+import { Repository } from 'typeorm';
 import { Review } from '../../database/entities/review.entity';
-import { Order, OrderStatus } from '../../database/entities/order.entity';
-import { OrderItem } from '../../database/entities/order-item.entity';
 import {
   CreateReviewDto,
   UpdateReviewDto,
@@ -21,40 +19,9 @@ export class ReviewsService {
   constructor(
     @InjectRepository(Review)
     private reviewRepository: Repository<Review>,
-    @InjectRepository(Order)
-    private orderRepository: Repository<Order>,
-    @InjectRepository(OrderItem)
-    private orderItemRepository: Repository<OrderItem>,
   ) {}
 
-  async canUserReview(userId: string, productId: string | number): Promise<{ canReview: boolean; orderId?: string; existingReview?: boolean }> {
-
-    // First check if there's any order (any status) for this user and product
-    // Then check if it's delivered
-    const allOrders = await this.orderRepository.find({
-      where: { userId },
-      relations: ['items'],
-    });
-
-
-    // Filter to find orders containing this product
-    const productOrders = allOrders.filter((order) =>
-      order.items?.some((item) => String(item.productId) === String(productId)),
-    );
-
-    productOrders.forEach((order) => {
-    });
-
-    // Check for delivered orders - handle both enum and string format
-    const deliveredOrders = productOrders.filter(
-      (order) => order.status === OrderStatus.DELIVERED || String(order.status) === 'delivered',
-    );
-
-
-    if (deliveredOrders.length === 0) {
-      return { canReview: false };
-    }
-
+  async canUserReview(userId: string, productId: string | number): Promise<{ canReview: boolean; existingReview?: boolean }> {
     const existingReview = await this.reviewRepository.findOne({
       where: {
         userId,
@@ -62,25 +29,17 @@ export class ReviewsService {
       },
     });
 
-
     return {
       canReview: true,
-      orderId: deliveredOrders[0].id,
       existingReview: !!existingReview,
     };
   }
 
   async create(userId: string, createReviewDto: CreateReviewDto): Promise<Review> {
-    const { canReview, orderId, existingReview } = await this.canUserReview(
+    const { existingReview } = await this.canUserReview(
       userId,
       createReviewDto.productId,
     );
-
-    if (!canReview) {
-      throw new ForbiddenException(
-        'You can only review products that you have purchased and received.',
-      );
-    }
 
     if (existingReview) {
       throw new BadRequestException(
@@ -91,7 +50,7 @@ export class ReviewsService {
     const review = this.reviewRepository.create({
       userId,
       productId: createReviewDto.productId,
-      orderId: orderId || createReviewDto.orderId,
+      orderId: createReviewDto.orderId,
       rating: createReviewDto.rating,
       title: createReviewDto.title,
       comment: createReviewDto.comment,
