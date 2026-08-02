@@ -37,6 +37,12 @@ export class BrandsController {
     return this.brandsService.findBySlug(slug);
   }
 
+  @Get("slug/:slug/details")
+  @ApiOperation({ summary: "Get brand details with catalog stats" })
+  async getBrandDetails(@Param("slug") slug: string) {
+    return this.brandsService.getBrandDetails(slug);
+  }
+
   @Get(":id")
   @ApiOperation({ summary: "Get brand by ID" })
   async findOne(@Param("id") id: string) {

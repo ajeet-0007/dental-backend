@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, ConflictException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
-import { Brand } from "../../database/entities";
+import { Brand, Product } from "../../database/entities";
 import { CreateBrandDto, UpdateBrandDto } from "./dto/brand.dto";
 import { slugify } from "../../common/utils/slugify";
 
@@ -87,6 +87,50 @@ export class BrandsService {
     }
 
     return brand;
+  }
+
+  async getBrandDetails(slug: string): Promise<any> {
+    const brand = await this.findBySlug(slug);
+    const productRepository = this.brandRepository.manager.getRepository(Product);
+
+    const stats = await productRepository
+      .createQueryBuilder("product")
+      .select("COUNT(product.id)", "productCount")
+      .addSelect("COUNT(DISTINCT product.categoryId)", "categoryCount")
+      .addSelect("MIN(product.sellingPrice)", "minPrice")
+      .addSelect("MAX(product.sellingPrice)", "maxPrice")
+      .addSelect(
+        "SUM(CASE WHEN product.isFeatured = 1 THEN 1 ELSE 0 END)",
+        "featuredProductCount"
+      )
+      .where("product.brandId = :brandId", { brandId: brand.id })
+      .andWhere("product.isActive = 1")
+      .getRawOne();
+
+    const categories = await productRepository
+      .createQueryBuilder("product")
+      .innerJoin("product.category", "category")
+      .select("category.id", "id")
+      .addSelect("category.slug", "slug")
+      .addSelect("category.name", "name")
+      .addSelect("COUNT(product.id)", "count")
+      .where("product.brandId = :brandId", { brandId: brand.id })
+      .andWhere("product.isActive = 1")
+      .groupBy("category.id")
+      .addGroupBy("category.slug")
+      .addGroupBy("category.name")
+      .orderBy("count", "DESC")
+      .getRawMany();
+
+    return {
+      ...brand,
+      productCount: parseInt(stats?.productCount || 0, 10),
+      categoryCount: parseInt(stats?.categoryCount || 0, 10),
+      minPrice: stats?.minPrice == null ? null : Number(stats.minPrice),
+      maxPrice: stats?.maxPrice == null ? null : Number(stats.maxPrice),
+      featuredProductCount: parseInt(stats?.featuredProductCount || 0, 10),
+      categories,
+    };
   }
 
   async update(
