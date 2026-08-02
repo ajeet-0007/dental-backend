@@ -40,6 +40,12 @@ export class DepartmentsController {
     return this.departmentsService.findBySlug(slug);
   }
 
+  @Get("slug/:slug/details")
+  @ApiOperation({ summary: "Get department details with catalog stats" })
+  async getDepartmentDetails(@Param("slug") slug: string) {
+    return this.departmentsService.getDepartmentDetails(slug);
+  }
+
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)

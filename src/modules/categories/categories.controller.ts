@@ -52,6 +52,12 @@ export class CategoriesController {
     return this.categoriesService.findBySlug(slug);
   }
 
+  @Get('slug/:slug/details')
+  @ApiOperation({ summary: 'Get category details with catalog stats' })
+  async getCategoryDetails(@Param('slug') slug: string) {
+    return this.categoriesService.getCategoryDetails(slug);
+  }
+
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)

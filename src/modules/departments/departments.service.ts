@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, ConflictException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
-import { Department } from "../../database/entities";
+import { Department, Product } from "../../database/entities";
 import { CreateDepartmentDto, UpdateDepartmentDto } from "./dto/department.dto";
 import { slugify } from "../../common/utils/slugify";
 
@@ -71,6 +71,38 @@ export class DepartmentsService {
     }
 
     return department;
+  }
+
+  async getDepartmentDetails(slug: string): Promise<any> {
+    const department = await this.findBySlug(slug);
+    const productRepository =
+      this.departmentRepository.manager.getRepository(Product);
+
+    const stats = await productRepository
+      .createQueryBuilder("product")
+      .innerJoin("product.departments", "department")
+      .select("COUNT(DISTINCT product.id)", "productCount")
+      .addSelect("COUNT(DISTINCT product.categoryId)", "categoryCount")
+      .addSelect("COUNT(DISTINCT product.brandId)", "brandCount")
+      .addSelect("MIN(product.sellingPrice)", "minPrice")
+      .addSelect("MAX(product.sellingPrice)", "maxPrice")
+      .addSelect(
+        "SUM(CASE WHEN product.isFeatured = 1 THEN 1 ELSE 0 END)",
+        "featuredProductCount"
+      )
+      .where("department.slug = :slug", { slug })
+      .andWhere("product.isActive = 1")
+      .getRawOne();
+
+    return {
+      ...department,
+      productCount: parseInt(stats?.productCount || 0, 10),
+      categoryCount: parseInt(stats?.categoryCount || 0, 10),
+      brandCount: parseInt(stats?.brandCount || 0, 10),
+      minPrice: stats?.minPrice == null ? null : Number(stats.minPrice),
+      maxPrice: stats?.maxPrice == null ? null : Number(stats.maxPrice),
+      featuredProductCount: parseInt(stats?.featuredProductCount || 0, 10),
+    };
   }
 
   async update(

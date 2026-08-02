@@ -5,7 +5,7 @@ import {
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
-import { Category } from "../../database/entities";
+import { Category, Product } from "../../database/entities";
 import { CreateCategoryDto, UpdateCategoryDto } from "./dto/category.dto";
 import { slugify } from "../../common/utils/slugify";
 
@@ -72,6 +72,37 @@ export class CategoriesService {
     }
 
     return category;
+  }
+
+  async getCategoryDetails(slug: string): Promise<any> {
+    const category = await this.findBySlug(slug);
+    const productRepository =
+      this.categoryRepository.manager.getRepository(Product);
+
+    const stats = await productRepository
+      .createQueryBuilder("product")
+      .innerJoin("product.category", "category")
+      .select("COUNT(product.id)", "productCount")
+      .addSelect("COUNT(DISTINCT product.brandId)", "brandCount")
+      .addSelect("MIN(product.sellingPrice)", "minPrice")
+      .addSelect("MAX(product.sellingPrice)", "maxPrice")
+      .addSelect(
+        "SUM(CASE WHEN product.isFeatured = 1 THEN 1 ELSE 0 END)",
+        "featuredProductCount"
+      )
+      .where("category.slug = :slug", { slug })
+      .andWhere("product.isActive = 1")
+      .getRawOne();
+
+    return {
+      ...category,
+      productCount: parseInt(stats?.productCount || 0, 10),
+      brandCount: parseInt(stats?.brandCount || 0, 10),
+      minPrice: stats?.minPrice == null ? null : Number(stats.minPrice),
+      maxPrice: stats?.maxPrice == null ? null : Number(stats.maxPrice),
+      featuredProductCount: parseInt(stats?.featuredProductCount || 0, 10),
+      subcategoryCount: (category.children || []).length,
+    };
   }
 
   async update(
