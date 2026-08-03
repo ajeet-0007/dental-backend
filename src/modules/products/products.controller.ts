@@ -86,8 +86,8 @@ export class ProductsController {
 
   @Get('search/:query')
   @ApiOperation({ summary: 'Global search products and categories' })
-  async globalSearch(@Param('query') query: string) {
-    return this.productsService.globalSearch(query);
+  async globalSearch(@Param('query') query: string, @Query('limit') limit = 6) {
+    return this.productsService.globalSearch(query, +limit);
   }
 
   @Get(':id')

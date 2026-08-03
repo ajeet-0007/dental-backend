@@ -1037,36 +1037,53 @@ export class ProductsService {
     return result.map((r) => r.brand).filter(Boolean);
   }
 
-  async globalSearch(query: string) {
+  async globalSearch(query: string, limit = 6) {
+    const trimmed = (query || "").trim();
+    if (!trimmed) {
+      return { products: [], categories: [], brands: [] };
+    }
+
+    const limitNum = Math.min(Math.max(limit, 1), 12);
+
     const products = await this.productRepository
       .createQueryBuilder("product")
       .leftJoinAndSelect("product.category", "category")
       .leftJoinAndSelect("product.brandEntity", "brandEntity")
-      .where("(product.name LIKE :query OR product.description LIKE :query)", {
-        query: `%${query}%`,
-      })
+      .where(
+        "(product.name LIKE :query OR product.description LIKE :query OR product.sku LIKE :query OR product.brand LIKE :query OR brandEntity.name LIKE :query)",
+        { query: `%${trimmed}%` },
+      )
       .andWhere("product.isActive = :isActive", { isActive: true })
       .orderBy("product.name", "ASC")
-      .take(8)
+      .take(limitNum * 3)
       .getMany();
+
+    products.sort((a, b) => {
+      const aName = a.name.toLowerCase();
+      const bName = b.name.toLowerCase();
+      const q = trimmed.toLowerCase();
+      const aStarts = aName.startsWith(q) ? 0 : 1;
+      const bStarts = bName.startsWith(q) ? 0 : 1;
+      return aStarts - bStarts || aName.localeCompare(bName);
+    });
 
     const categories = await this.categoryRepository
       .createQueryBuilder("category")
-      .where("category.name LIKE :query", { query: `%${query}%` })
+      .where("category.name LIKE :query", { query: `%${trimmed}%` })
       .andWhere("category.isActive = :isActive", { isActive: true })
       .orderBy("category.name", "ASC")
-      .take(5)
+      .take(4)
       .getMany();
 
     const brands = await this.brandRepository
       .createQueryBuilder("brand")
-      .where("brand.name LIKE :query", { query: `%${query}%` })
+      .where("brand.name LIKE :query", { query: `%${trimmed}%` })
       .andWhere("brand.isActive = :isActive", { isActive: true })
       .orderBy("brand.name", "ASC")
-      .take(5)
+      .take(4)
       .getMany();
 
-    return { products, categories, brands };
+    return { products: products.slice(0, limitNum), categories, brands };
   }
 
   async getRecommendedByCategories(categorySlugs: string[], excludeProductIds: number[], limit = 8) {
