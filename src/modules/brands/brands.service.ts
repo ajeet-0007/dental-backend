@@ -51,20 +51,20 @@ export class BrandsService {
       .orderBy("brand.sortOrder", "ASC")
       .getMany();
 
-    const result = await Promise.all(
-      brands.map(async (brand) => {
-        const countResult = await this.brandRepository.manager.query(
-          `SELECT COUNT(*) as count FROM products WHERE brandId = ?`,
-          [brand.id]
-        );
-        return {
-          ...brand,
-          productCount: parseInt(countResult[0].count, 10) || 0,
-        };
-      })
-    );
+    const countRows: { brandId: string | number; count: string | number }[] =
+      await this.brandRepository.manager.query(
+        `SELECT brandId, COUNT(*) as count FROM products WHERE brandId IS NOT NULL GROUP BY brandId`
+      );
 
-    return result;
+    const countMap = new Map<number, number>();
+    countRows.forEach((row) => {
+      countMap.set(Number(row.brandId), parseInt(String(row.count), 10) || 0);
+    });
+
+    return brands.map((brand) => ({
+      ...brand,
+      productCount: countMap.get(brand.id) || 0,
+    }));
   }
 
   async findOne(id: string): Promise<Brand> {
