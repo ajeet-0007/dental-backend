@@ -11,6 +11,7 @@ import {
 } from "@nestjs/common";
 import { AdminService } from "./admin.service";
 import { AdminProductQueryDto } from "./dto/admin-product-query.dto";
+import { BulkDeleteProductsDto } from "./dto/bulk-delete-products.dto";
 import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
 import { RolesGuard } from "../../common/guards/roles.guard";
 import { Roles } from "../../common/decorators/roles.decorator";
@@ -66,6 +67,11 @@ export class AdminController {
   @Post("products")
   async createProduct(@Body() productData: any) {
     return this.adminService.createProduct(productData);
+  }
+
+  @Post("products/bulk-delete")
+  async bulkDeleteProducts(@Body() dto: BulkDeleteProductsDto) {
+    return this.adminService.deleteProductsBulk(dto.ids);
   }
 
   @Put("products/:id")

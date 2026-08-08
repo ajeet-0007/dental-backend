@@ -659,6 +659,41 @@ export class AdminService {
     }
   }
 
+  async deleteProductsBulk(ids: number[]) {
+    if (!ids || ids.length === 0) {
+      throw new NotFoundException("No product ids provided");
+    }
+
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    let deleted = 0;
+    const notFound: number[] = [];
+    try {
+      for (const productId of ids) {
+        const product = await queryRunner.manager.findOne(Product, {
+          where: { id: productId },
+        });
+        if (!product) {
+          notFound.push(productId);
+          continue;
+        }
+        await queryRunner.manager.delete(Inventory, { productId: String(productId) });
+        await queryRunner.manager.remove(product);
+        deleted += 1;
+      }
+
+      await queryRunner.commitTransaction();
+      return { deleted, notFound };
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
   async getInventory(productId?: number, search?: string) {
     const query = this.inventoryRepository
       .createQueryBuilder("inventory")
