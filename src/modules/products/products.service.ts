@@ -21,6 +21,7 @@ import {
   ProductOptionValueDto,
 } from "./dto/product.dto";
 import { slugify, generateSKU } from "../../common/utils/slugify";
+import { ImageKitService } from "../imagekit/imagekit.service";
 
 @Injectable()
 export class ProductsService {
@@ -42,6 +43,7 @@ export class ProductsService {
     @InjectRepository(VariantOption)
     private variantOptionRepository: Repository<VariantOption>,
     private dataSource: DataSource,
+    private imageKitService: ImageKitService,
   ) {}
 
   async create(createProductDto: CreateProductDto): Promise<Product> {
@@ -542,8 +544,17 @@ export class ProductsService {
       updateProductDto.hasVariants = updateProductDto.options.length > 0;
     }
 
+    const previousImages = product.images || [];
+
     Object.assign(product, updateProductDto);
-    return this.productRepository.save(product);
+    const savedProduct = await this.productRepository.save(product);
+
+    const removedImages = previousImages.filter(
+      (img: string) => !(savedProduct.images || []).includes(img),
+    );
+    await this.imageKitService.deleteFiles(removedImages);
+
+    return savedProduct;
   }
 
   private async updateProductOptions(productId: number, options: any[]): Promise<void> {
@@ -556,6 +567,10 @@ export class ProductsService {
         where: { productId },
         relations: ['values'],
       });
+
+      const removedSwatchUrls = existingOptions.flatMap((opt) =>
+        (opt.values || []).map((val) => val.swatchUrl),
+      );
 
       for (const existingOpt of existingOptions) {
         if (existingOpt.values) {
@@ -589,6 +604,7 @@ export class ProductsService {
       }
 
       await queryRunner.commitTransaction();
+      await this.imageKitService.deleteFiles(removedSwatchUrls);
     } catch (error) {
       await queryRunner.rollbackTransaction();
       throw error;
@@ -599,7 +615,20 @@ export class ProductsService {
 
   async remove(id: string): Promise<void> {
     const product = await this.findOne(id);
+
+    const imageUrls = [
+      ...(product.images || []),
+      ...(product.variants || []).flatMap((v: any) => [
+        v.image,
+        ...(v.images || []),
+      ]),
+      ...(product.options || []).flatMap((o: any) =>
+        (o.values || []).map((val: any) => val.swatchUrl),
+      ),
+    ];
+
     await this.productRepository.remove(product);
+    await this.imageKitService.deleteFiles(imageUrls);
   }
 
   async createVariant(
@@ -843,8 +872,25 @@ export class ProductsService {
     if (sanitizedDto.weight !== undefined) sanitizedDto.weight = Number(sanitizedDto.weight) || 0;
     if (sanitizedDto.packQuantity !== undefined) sanitizedDto.packQuantity = Number(sanitizedDto.packQuantity) || 1;
 
+    const previousImages = [
+      variant.image,
+      ...(variant.images || []),
+    ].filter(Boolean);
+
     Object.assign(variant, sanitizedDto);
-    return this.productVariantRepository.save(variant);
+    const savedVariant = await this.productVariantRepository.save(variant);
+
+    const currentImages = [
+      savedVariant.image,
+      ...(savedVariant.images || []),
+    ].filter(Boolean);
+
+    const removedImages = previousImages.filter(
+      (img) => !currentImages.includes(img),
+    );
+    await this.imageKitService.deleteFiles(removedImages);
+
+    return savedVariant;
   }
 
   async removeVariant(id: string): Promise<void> {
@@ -855,6 +901,7 @@ export class ProductsService {
     }
 
     const productId = variant.productId;
+    const imageUrls = [variant.image, ...(variant.images || [])];
     await this.productVariantRepository.remove(variant);
 
     const remainingVariants = await this.productVariantRepository.find({
@@ -864,6 +911,8 @@ export class ProductsService {
     if (remainingVariants.length === 0) {
       await this.productRepository.update(productId, { hasVariants: false });
     }
+
+    await this.imageKitService.deleteFiles(imageUrls);
   }
 
   async updateVariantInventory(variantId: string, quantity: number): Promise<Inventory> {

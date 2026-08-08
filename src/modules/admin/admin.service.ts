@@ -4,6 +4,7 @@ import { Repository, DataSource, In } from "typeorm";
 import { Order, OrderStatus } from "../../database/entities/order.entity";
 import { Payment } from "../../database/entities/payment.entity";
 import { Product } from "../../database/entities/product.entity";
+import { ProductVariant } from "../../database/entities/product-variant.entity";
 import { User, UserRole } from "../../database/entities/user.entity";
 import { OrderItem } from "../../database/entities/order-item.entity";
 import { Inventory } from "../../database/entities/inventory.entity";
@@ -14,6 +15,7 @@ import { Department } from "../../database/entities/department.entity";
 import { Brand, Shipment, ShipmentStatus } from "../../database/entities";
 import { ShippingRocketService } from "../shipping/shipping-rocket.service";
 import { AdminProductQueryDto } from "./dto/admin-product-query.dto";
+import { ImageKitService } from "../imagekit/imagekit.service";
 
 @Injectable()
 export class AdminService {
@@ -44,6 +46,7 @@ export class AdminService {
     private shipmentRepository: Repository<Shipment>,
     private shippingRocketService: ShippingRocketService,
     private dataSource: DataSource,
+    private imageKitService: ImageKitService,
   ) {}
 
   async getDashboardStats() {
@@ -551,6 +554,8 @@ export class AdminService {
       restData.hasVariants = options.length > 0;
     }
 
+    const previousImages = product.images || [];
+
     Object.assign(product, restData);
     await this.productRepository.save(product);
 
@@ -574,6 +579,13 @@ export class AdminService {
       where: { id: productId },
       relations: ["options", "options.values", "departments"],
     });
+
+    if (updatedProduct) {
+      const removedImages = previousImages.filter(
+        (img) => !(updatedProduct.images || []).includes(img),
+      );
+      await this.imageKitService.deleteFiles(removedImages);
+    }
 
     return updatedProduct;
   }
@@ -646,10 +658,20 @@ export class AdminService {
     await queryRunner.startTransaction();
 
     try {
+      const variants = await queryRunner.manager.find(ProductVariant, {
+        where: { productId: String(productId) },
+      });
+
+      const imageUrls = [
+        ...(product.images || []),
+        ...variants.flatMap((v) => [v.image, ...(v.images || [])]),
+      ];
+
       await queryRunner.manager.delete(Inventory, { productId: String(productId) });
       await queryRunner.manager.remove(product);
       
       await queryRunner.commitTransaction();
+      await this.imageKitService.deleteFiles(imageUrls);
       return { success: true };
     } catch (error) {
       await queryRunner.rollbackTransaction();
@@ -670,6 +692,7 @@ export class AdminService {
 
     let deleted = 0;
     const notFound: number[] = [];
+    const imageUrls: (string | null | undefined)[] = [];
     try {
       for (const productId of ids) {
         const product = await queryRunner.manager.findOne(Product, {
@@ -679,12 +702,20 @@ export class AdminService {
           notFound.push(productId);
           continue;
         }
+        const variants = await queryRunner.manager.find(ProductVariant, {
+          where: { productId: String(productId) },
+        });
+        imageUrls.push(
+          ...(product.images || []),
+          ...variants.flatMap((v) => [v.image, ...(v.images || [])]),
+        );
         await queryRunner.manager.delete(Inventory, { productId: String(productId) });
         await queryRunner.manager.remove(product);
         deleted += 1;
       }
 
       await queryRunner.commitTransaction();
+      await this.imageKitService.deleteFiles(imageUrls);
       return { deleted, notFound };
     } catch (error) {
       await queryRunner.rollbackTransaction();

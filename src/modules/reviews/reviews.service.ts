@@ -13,12 +13,14 @@ import {
   ReviewQueryDto,
   ReviewStatsDto,
 } from './dto/review.dto';
+import { ImageKitService } from '../imagekit/imagekit.service';
 
 @Injectable()
 export class ReviewsService {
   constructor(
     @InjectRepository(Review)
     private reviewRepository: Repository<Review>,
+    private imageKitService: ImageKitService,
   ) {}
 
   async canUserReview(userId: string, productId: string | number): Promise<{ canReview: boolean; existingReview?: boolean }> {
@@ -180,8 +182,17 @@ export class ReviewsService {
       throw new ForbiddenException('You can only update your own reviews');
     }
 
+    const previousImages = review.images || [];
+
     Object.assign(review, updateReviewDto);
-    return this.reviewRepository.save(review);
+    const savedReview = await this.reviewRepository.save(review);
+
+    const removedImages = previousImages.filter(
+      (img) => !(savedReview.images || []).includes(img),
+    );
+    await this.imageKitService.deleteFiles(removedImages);
+
+    return savedReview;
   }
 
   async remove(id: string, userId: string): Promise<void> {
@@ -191,7 +202,9 @@ export class ReviewsService {
       throw new ForbiddenException('You can only delete your own reviews');
     }
 
+    const imageUrls = review.images || [];
     await this.reviewRepository.remove(review);
+    await this.imageKitService.deleteFiles(imageUrls);
   }
 
   async markHelpful(id: string): Promise<Review> {

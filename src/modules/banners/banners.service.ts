@@ -3,12 +3,14 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, LessThanOrEqual, MoreThanOrEqual, And } from "typeorm";
 import { Banner } from "../../database/entities";
 import { CreateBannerDto, UpdateBannerDto } from "./dto/banner.dto";
+import { ImageKitService } from "../imagekit/imagekit.service";
 
 @Injectable()
 export class BannersService {
   constructor(
     @InjectRepository(Banner)
     private bannerRepository: Repository<Banner>,
+    private imageKitService: ImageKitService,
   ) {}
 
   async create(createBannerDto: CreateBannerDto): Promise<Banner> {
@@ -55,12 +57,22 @@ export class BannersService {
   ): Promise<Banner> {
     const banner = await this.findOne(id);
 
+    const previousImage = banner.image;
+
     Object.assign(banner, updateBannerDto);
-    return this.bannerRepository.save(banner);
+    const savedBanner = await this.bannerRepository.save(banner);
+
+    if (previousImage && previousImage !== savedBanner.image) {
+      await this.imageKitService.deleteFiles([previousImage]);
+    }
+
+    return savedBanner;
   }
 
   async remove(id: string): Promise<void> {
     const banner = await this.findOne(id);
+    const image = banner.image;
     await this.bannerRepository.remove(banner);
+    await this.imageKitService.deleteFiles([image]);
   }
 }

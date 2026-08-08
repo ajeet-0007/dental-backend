@@ -8,6 +8,7 @@ import {
   CreateGalleryImageDto,
   UpdateGalleryImageDto,
 } from "./dto/gallery.dto";
+import { ImageKitService } from "../imagekit/imagekit.service";
 
 @Injectable()
 export class GalleryService {
@@ -16,6 +17,7 @@ export class GalleryService {
     private albumRepository: Repository<GalleryAlbum>,
     @InjectRepository(GalleryImage)
     private imageRepository: Repository<GalleryImage>,
+    private imageKitService: ImageKitService,
   ) {}
 
   // Album methods
@@ -64,13 +66,27 @@ export class GalleryService {
 
   async updateAlbum(id: string, dto: UpdateAlbumDto): Promise<GalleryAlbum> {
     const album = await this.findAlbumById(id);
+    const previousCover = album.coverImage;
     Object.assign(album, dto);
-    return this.albumRepository.save(album);
+    const savedAlbum = await this.albumRepository.save(album);
+
+    if (previousCover && previousCover !== savedAlbum.coverImage) {
+      await this.imageKitService.deleteFiles([previousCover]);
+    }
+
+    return savedAlbum;
   }
 
   async removeAlbum(id: string): Promise<void> {
     const album = await this.findAlbumById(id);
+
+    const imageUrls = [
+      album.coverImage,
+      ...(album.images || []).map((image) => image.imageUrl),
+    ];
+
     await this.albumRepository.remove(album);
+    await this.imageKitService.deleteFiles(imageUrls);
   }
 
   // Image methods
@@ -117,12 +133,21 @@ export class GalleryService {
 
   async updateImage(id: string, dto: UpdateGalleryImageDto): Promise<GalleryImage> {
     const image = await this.findImageById(id);
+    const previousUrl = image.imageUrl;
     Object.assign(image, dto);
-    return this.imageRepository.save(image);
+    const savedImage = await this.imageRepository.save(image);
+
+    if (previousUrl && previousUrl !== savedImage.imageUrl) {
+      await this.imageKitService.deleteFiles([previousUrl]);
+    }
+
+    return savedImage;
   }
 
   async removeImage(id: string): Promise<void> {
     const image = await this.findImageById(id);
+    const imageUrl = image.imageUrl;
     await this.imageRepository.remove(image);
+    await this.imageKitService.deleteFiles([imageUrl]);
   }
 }

@@ -4,12 +4,14 @@ import { Repository } from "typeorm";
 import { Brand, Product } from "../../database/entities";
 import { CreateBrandDto, UpdateBrandDto } from "./dto/brand.dto";
 import { slugify } from "../../common/utils/slugify";
+import { ImageKitService } from "../imagekit/imagekit.service";
 
 @Injectable()
 export class BrandsService {
   constructor(
     @InjectRepository(Brand)
     private brandRepository: Repository<Brand>,
+    private imageKitService: ImageKitService,
   ) {}
 
   async create(createBrandDto: CreateBrandDto): Promise<Brand> {
@@ -144,12 +146,22 @@ export class BrandsService {
         updateBrandDto.slug || slugify(updateBrandDto.name);
     }
 
+    const previousLogo = brand.logo;
+
     Object.assign(brand, updateBrandDto);
-    return this.brandRepository.save(brand);
+    const savedBrand = await this.brandRepository.save(brand);
+
+    if (previousLogo && previousLogo !== savedBrand.logo) {
+      await this.imageKitService.deleteFiles([previousLogo]);
+    }
+
+    return savedBrand;
   }
 
   async remove(id: string): Promise<void> {
     const brand = await this.findOne(id);
+    const logo = brand.logo;
     await this.brandRepository.remove(brand);
+    await this.imageKitService.deleteFiles([logo]);
   }
 }

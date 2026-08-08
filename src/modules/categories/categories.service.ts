@@ -8,12 +8,14 @@ import { Repository } from "typeorm";
 import { Category, Product } from "../../database/entities";
 import { CreateCategoryDto, UpdateCategoryDto } from "./dto/category.dto";
 import { slugify } from "../../common/utils/slugify";
+import { ImageKitService } from "../imagekit/imagekit.service";
 
 @Injectable()
 export class CategoriesService {
   constructor(
     @InjectRepository(Category)
     private categoryRepository: Repository<Category>,
+    private imageKitService: ImageKitService,
   ) {}
 
   async create(createCategoryDto: CreateCategoryDto): Promise<Category> {
@@ -116,8 +118,16 @@ export class CategoriesService {
         updateCategoryDto.slug || slugify(updateCategoryDto.name);
     }
 
+    const previousImage = category.image;
+
     Object.assign(category, updateCategoryDto);
-    return this.categoryRepository.save(category);
+    const savedCategory = await this.categoryRepository.save(category);
+
+    if (previousImage && previousImage !== savedCategory.image) {
+      await this.imageKitService.deleteFiles([previousImage]);
+    }
+
+    return savedCategory;
   }
 
   async remove(id: string): Promise<void> {
@@ -131,7 +141,9 @@ export class CategoriesService {
       throw new ConflictException("Cannot delete category with children");
     }
 
+    const image = category.image;
     await this.categoryRepository.remove(category);
+    await this.imageKitService.deleteFiles([image]);
   }
 
   async getTree(): Promise<Category[]> {

@@ -4,12 +4,14 @@ import { Repository } from "typeorm";
 import { Department, Product } from "../../database/entities";
 import { CreateDepartmentDto, UpdateDepartmentDto } from "./dto/department.dto";
 import { slugify } from "../../common/utils/slugify";
+import { ImageKitService } from "../imagekit/imagekit.service";
 
 @Injectable()
 export class DepartmentsService {
   constructor(
     @InjectRepository(Department)
     private departmentRepository: Repository<Department>,
+    private imageKitService: ImageKitService,
   ) {}
 
   async create(createDepartmentDto: CreateDepartmentDto): Promise<Department> {
@@ -116,12 +118,22 @@ export class DepartmentsService {
         updateDepartmentDto.slug || slugify(updateDepartmentDto.name);
     }
 
+    const previousImage = department.image;
+
     Object.assign(department, updateDepartmentDto);
-    return this.departmentRepository.save(department);
+    const savedDepartment = await this.departmentRepository.save(department);
+
+    if (previousImage && previousImage !== savedDepartment.image) {
+      await this.imageKitService.deleteFiles([previousImage]);
+    }
+
+    return savedDepartment;
   }
 
   async remove(id: string): Promise<void> {
     const department = await this.findOne(id);
+    const image = department.image;
     await this.departmentRepository.remove(department);
+    await this.imageKitService.deleteFiles([image]);
   }
 }
