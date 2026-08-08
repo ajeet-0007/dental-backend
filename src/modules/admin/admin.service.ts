@@ -13,6 +13,7 @@ import { ProductOptionValue } from "../../database/entities/product-option-value
 import { Department } from "../../database/entities/department.entity";
 import { Brand, Shipment, ShipmentStatus } from "../../database/entities";
 import { ShippingRocketService } from "../shipping/shipping-rocket.service";
+import { AdminProductQueryDto } from "./dto/admin-product-query.dto";
 
 @Injectable()
 export class AdminService {
@@ -212,13 +213,28 @@ export class AdminService {
     return { success: true, user };
   }
 
-  async getAllProducts(
-    page = 1,
-    limit = 20,
-    search?: string,
-    categoryId?: number,
-  ) {
-    const query = this.productRepository
+  async getAllProducts(query: AdminProductQueryDto) {
+    const {
+      page = 1,
+      limit = 20,
+      search,
+      categoryId,
+      brandId,
+      departmentIds,
+      isActive,
+      isFeatured,
+      hasVariants,
+      minPrice,
+      maxPrice,
+      stockStatus,
+      missing,
+      duplicate,
+      expired,
+      expiringSoon,
+      expiringDays = 30,
+    } = query;
+
+    const qb = this.productRepository
       .createQueryBuilder("product")
       .leftJoinAndSelect("product.category", "category")
       .leftJoinAndSelect("product.brandEntity", "brandEntity")
@@ -227,29 +243,104 @@ export class AdminService {
       .leftJoinAndSelect("options.values", "optionValues")
       .leftJoinAndSelect("product.variants", "variants")
       .leftJoinAndSelect("product.inventories", "inventories")
-      .orderBy("product.createdAt", "DESC")
-      .skip((page - 1) * limit)
-      .take(limit);
+      .orderBy("product.createdAt", "DESC");
 
     if (search) {
-      query.andWhere(
-        "(product.name LIKE :search OR product.sku LIKE :search)",
-        {
-          search: `%${search}%`,
-        },
-      );
+      qb.andWhere("(product.name LIKE :search OR product.sku LIKE :search)", {
+        search: `%${search}%`,
+      });
     }
 
     if (categoryId) {
-      query.andWhere("product.categoryId = :categoryId", { categoryId });
+      qb.andWhere("product.categoryId = :categoryId", { categoryId });
     }
 
-    const [products, total] = await query.getManyAndCount();
+    if (brandId) {
+      qb.andWhere("product.brandId = :brandId", { brandId });
+    }
+
+    if (departmentIds && departmentIds.length > 0) {
+      qb.andWhere(
+        `EXISTS (
+          SELECT 1 FROM product_departments pd
+          WHERE pd.productId = product.id AND pd.departmentId IN (:...departmentIds)
+        )`,
+        { departmentIds },
+      );
+    }
+
+    if (isActive !== undefined) {
+      qb.andWhere("product.isActive = :isActive", { isActive });
+    }
+
+    if (isFeatured !== undefined) {
+      qb.andWhere("product.isFeatured = :isFeatured", { isFeatured });
+    }
+
+    if (hasVariants !== undefined) {
+      qb.andWhere("product.hasVariants = :hasVariants", { hasVariants });
+    }
+
+    if (minPrice !== undefined) {
+      qb.andWhere("product.sellingPrice >= :minPrice", { minPrice });
+    }
+
+    if (maxPrice !== undefined) {
+      qb.andWhere("product.sellingPrice <= :maxPrice", { maxPrice });
+    }
+
+    if (stockStatus) {
+      const stockSql =
+        stockStatus === "in"
+          ? `EXISTS (SELECT 1 FROM inventory i WHERE i.productId = product.id AND i.quantity > 0)`
+          : stockStatus === "low"
+            ? `EXISTS (
+                SELECT 1 FROM inventory i
+                WHERE i.productId = product.id AND i.quantity > 0
+                  AND i.quantity <= i.lowStockThreshold
+              )`
+            : `NOT EXISTS (SELECT 1 FROM inventory i WHERE i.productId = product.id AND i.quantity > 0)`;
+      qb.andWhere(stockSql);
+    }
+
+    if (missing && missing.length > 0) {
+      const conditions: string[] = [];
+      for (const field of missing) {
+        const predicate = this.getMissingPredicate(field);
+        if (predicate) conditions.push(predicate);
+      }
+      if (conditions.length > 0) {
+        qb.andWhere(`(${conditions.join(" OR ")})`);
+      }
+    }
+
+    if (duplicate) {
+      const dupSql = this.getDuplicateSql(duplicate);
+      if (dupSql) {
+        qb.andWhere(`product.id IN (${dupSql})`);
+      }
+    }
+
+    if (expired) {
+      qb.andWhere("product.expiresAt IS NOT NULL AND product.expiresAt < NOW()");
+    }
+
+    if (expiringSoon) {
+      qb.andWhere(
+        `product.expiresAt IS NOT NULL
+          AND product.expiresAt BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL :expiringDays DAY)`,
+        { expiringDays },
+      );
+    }
+
+    qb.skip((page - 1) * limit).take(limit);
+
+    const [products, total] = await qb.getManyAndCount();
 
     const enrichedProducts = products.map((product: any) => {
       const variants = product.variants || [];
       const variantCount = variants.length;
-      
+
       let minVariantPrice = 0;
       let maxVariantPrice = 0;
       let variantPriceRange = "";
@@ -258,11 +349,11 @@ export class AdminService {
         const prices = variants
           .map((v: any) => v.sellingPrice)
           .filter((p: number) => p > 0);
-        
+
         if (prices.length > 0) {
           minVariantPrice = Math.min(...prices);
           maxVariantPrice = Math.max(...prices);
-          
+
           if (minVariantPrice === maxVariantPrice) {
             variantPriceRange = `₹${minVariantPrice}`;
           } else {
@@ -275,7 +366,7 @@ export class AdminService {
         (inv: any) => !inv.productVariantId,
       );
 
-      return {
+      const enriched: any = {
         ...product,
         variantCount,
         minVariantPrice,
@@ -284,6 +375,12 @@ export class AdminService {
         stock: baseInventory?.quantity ?? 0,
         inventories: undefined,
       };
+
+      if (duplicate) {
+        enriched.duplicateGroupKey = this.getDuplicateGroupKey(product, duplicate);
+      }
+
+      return enriched;
     });
 
     return {
@@ -292,6 +389,93 @@ export class AdminService {
       page,
       totalPages: Math.ceil(total / limit),
     };
+  }
+
+  private getMissingPredicate(field: string): string | null {
+    const simpleTextFields: Record<string, string> = {
+      description: "product.description",
+      shortDescription: "product.shortDescription",
+      features: "product.features",
+      keySpecifications: "product.keySpecifications",
+      packaging: "product.packaging",
+      directionToUse: "product.directionToUse",
+      additionalInfo: "product.additionalInfo",
+      warranty: "product.warranty",
+      sku: "product.sku",
+    };
+
+    if (field === "images") {
+      return "(product.images IS NULL OR JSON_LENGTH(product.images) = 0)";
+    }
+    if (field === "category") {
+      return "product.categoryId IS NULL";
+    }
+    if (field === "brand") {
+      return "product.brandId IS NULL";
+    }
+    if (field === "department") {
+      return `NOT EXISTS (
+        SELECT 1 FROM product_departments pd2
+        WHERE pd2.productId = product.id
+      )`;
+    }
+    if (field === "price") {
+      return "(product.sellingPrice <= 0 OR product.mrp <= 0)";
+    }
+    if (field === "variants") {
+      return `(product.hasVariants = 1 AND NOT EXISTS (
+        SELECT 1 FROM product_variants pv
+        WHERE CAST(pv.productId AS UNSIGNED) = product.id
+      ))`;
+    }
+    if (simpleTextFields[field]) {
+      const col = simpleTextFields[field];
+      return `(${col} IS NULL OR TRIM(${col}) = '')`;
+    }
+    return null;
+  }
+
+  private getDuplicateSql(rule: string): string | null {
+    if (rule === "name") {
+      return `SELECT d1.id FROM products d1
+        WHERE LOWER(TRIM(d1.name)) IN (
+          SELECT n FROM (
+            SELECT LOWER(TRIM(name)) AS n FROM products
+            GROUP BY LOWER(TRIM(name)) HAVING COUNT(*) > 1
+          ) t
+        )`;
+    }
+    if (rule === "sku") {
+      return `SELECT d1.id FROM products d1
+        WHERE d1.sku IS NOT NULL AND TRIM(d1.sku) <> ''
+          AND LOWER(TRIM(d1.sku)) IN (
+            SELECT n FROM (
+              SELECT LOWER(TRIM(sku)) AS n FROM products
+              WHERE sku IS NOT NULL AND TRIM(sku) <> ''
+              GROUP BY LOWER(TRIM(sku)) HAVING COUNT(*) > 1
+            ) t
+          )`;
+    }
+    if (rule === "name-brand") {
+      return `SELECT d1.id FROM products d1
+        WHERE (LOWER(TRIM(d1.name)), COALESCE(d1.brandId, 0)) IN (
+          SELECT n, b FROM (
+            SELECT LOWER(TRIM(name)) AS n, COALESCE(brandId, 0) AS b FROM products
+            GROUP BY LOWER(TRIM(name)), COALESCE(brandId, 0) HAVING COUNT(*) > 1
+          ) t
+        )`;
+    }
+    return null;
+  }
+
+  private getDuplicateGroupKey(product: any, rule: string): string {
+    if (rule === "sku") {
+      return (product.sku || "").trim().toLowerCase();
+    }
+    if (rule === "name-brand") {
+      return `${(product.name || "").trim().toLowerCase()}__${product.brandId ?? 0}`;
+    }
+    return (product.name || "").trim().toLowerCase();
   }
 
   async createProduct(productData: any) {

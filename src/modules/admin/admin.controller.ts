@@ -10,6 +10,7 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { AdminService } from "./admin.service";
+import { AdminProductQueryDto } from "./dto/admin-product-query.dto";
 import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
 import { RolesGuard } from "../../common/guards/roles.guard";
 import { Roles } from "../../common/decorators/roles.decorator";
@@ -58,18 +59,8 @@ export class AdminController {
   }
 
   @Get("products")
-  async getProducts(
-    @Query("page") page = 1,
-    @Query("limit") limit = 20,
-    @Query("search") search?: string,
-    @Query("categoryId") categoryId?: number,
-  ) {
-    return this.adminService.getAllProducts(
-      +page,
-      +limit,
-      search,
-      categoryId ? +categoryId : undefined,
-    );
+  async getProducts(@Query() query: AdminProductQueryDto) {
+    return this.adminService.getAllProducts(query);
   }
 
   @Post("products")
