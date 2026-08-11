@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { Category } from '../../../database/entities/category.entity';
 import { CategoryBulkUploadResultDto, CategoryBulkUploadResponseDto } from '../dto/category-bulk-upload.dto';
 import { slugify } from '../../../common/utils/slugify';
+import { decodeCsvBuffer } from '../../../common/utils/csv-encoding';
 
 interface CategoryParsedRow {
   name: string;
@@ -43,7 +44,7 @@ export class CategoriesBulkService {
   }
 
   private async parseCSV(file: Express.Multer.File): Promise<CategoryParsedRow[]> {
-    const content = file.buffer.toString('utf-8');
+    const content = decodeCsvBuffer(file.buffer);
     return new Promise((resolve, reject) => {
       const rows: CategoryParsedRow[] = [];
       parseString(content, { headers: true, trim: true })

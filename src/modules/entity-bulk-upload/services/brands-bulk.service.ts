@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { Brand } from '../../../database/entities/brand.entity';
 import { BrandBulkUploadResultDto, BrandBulkUploadResponseDto } from '../dto/brand-bulk-upload.dto';
 import { slugify } from '../../../common/utils/slugify';
+import { decodeCsvBuffer } from '../../../common/utils/csv-encoding';
 
 interface BrandParsedRow {
   name: string;
@@ -43,7 +44,7 @@ export class BrandsBulkService {
   }
 
   private async parseCSV(file: Express.Multer.File): Promise<BrandParsedRow[]> {
-    const content = file.buffer.toString('utf-8');
+    const content = decodeCsvBuffer(file.buffer);
     return new Promise((resolve, reject) => {
       const rows: BrandParsedRow[] = [];
       parseString(content, { headers: true, trim: true })

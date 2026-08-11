@@ -17,6 +17,7 @@ import { Brand } from '../../database/entities/brand.entity';
 import { Department } from '../../database/entities/department.entity';
 import { BulkUploadResultDto } from './dto/bulk-upload.dto';
 import { slugify, generateSKU } from '../../common/utils/slugify';
+import { decodeCsvBuffer } from '../../common/utils/csv-encoding';
 
 interface ParsedRow {
   product_name: string;
@@ -287,7 +288,7 @@ export class BulkUploadService {
   }
 
   async parseCSV(file: Express.Multer.File): Promise<ParsedRow[]> {
-    const content = file.buffer.toString('utf-8');
+    const content = decodeCsvBuffer(file.buffer);
 
     return new Promise((resolve, reject) => {
       const rows: ParsedRow[] = [];
