@@ -21,6 +21,9 @@ import { WishlistModule } from "./modules/wishlist/wishlist.module";
 import { BannersModule } from "./modules/banners/banners.module";
 import { DepartmentsModule } from "./modules/departments/departments.module";
 import { BrandsModule } from "./modules/brands/brands.module";
+import { HomepageBrandsModule } from "./modules/homepage-brands/homepage-brands.module";
+import { HomepageCategoriesModule } from "./modules/homepage-categories/homepage-categories.module";
+import { HomepageDepartmentsModule } from "./modules/homepage-departments/homepage-departments.module";
 import { ReviewsModule } from "./modules/reviews/reviews.module";
 import { EmailModule } from "./modules/email/email.module";
 import { ReturnsModule } from "./modules/returns/returns.module";
@@ -94,6 +97,9 @@ import { SupportModule } from "./modules/support/support.module";
     BannersModule,
     DepartmentsModule,
     BrandsModule,
+    HomepageBrandsModule,
+    HomepageCategoriesModule,
+    HomepageDepartmentsModule,
     ReviewsModule,
     ReturnsModule,
     NewsModule,

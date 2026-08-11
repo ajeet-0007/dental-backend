@@ -7,6 +7,9 @@ import { ProductOptionValue } from "../database/entities/product-option-value.en
 import { VariantOption } from "../database/entities/variant-option.entity";
 import { Category } from "../database/entities/category.entity";
 import { Brand } from "../database/entities/brand.entity";
+import { HomepageBrand } from "../database/entities/homepage-brand.entity";
+import { HomepageCategory } from "../database/entities/homepage-category.entity";
+import { HomepageDepartment } from "../database/entities/homepage-department.entity";
 import { Department } from "../database/entities/department.entity";
 import { User } from "../database/entities/user.entity";
 import { Address } from "../database/entities/address.entity";
@@ -43,6 +46,9 @@ export const AppDataSource = new DataSource({
     VariantOption,
     Category,
     Brand,
+    HomepageBrand,
+    HomepageCategory,
+    HomepageDepartment,
     Department,
     User,
     Address,
