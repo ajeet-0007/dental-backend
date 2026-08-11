@@ -110,6 +110,7 @@ export class ProductsService {
         brand: dto.brand,
         unit: dto.unit || 'unit',
         images: dto.images,
+        videoUrl: dto.videoUrl,
         isFeatured: dto.isFeatured || false,
         categoryId: dto.categoryId,
         hasVariants,

@@ -92,6 +92,9 @@ export class Product {
   @Column({ type: "text", nullable: true })
   directionToUse: string;
 
+  @Column({ type: "varchar", length: 255, nullable: true })
+  videoUrl: string;
+
   @Column({ type: "text", nullable: true })
   additionalInfo: string;
 

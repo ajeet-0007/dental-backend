@@ -137,6 +137,11 @@ export class CreateProductDto {
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
+  videoUrl?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
   additionalInfo?: string;
 
   @ApiProperty({ required: false })
@@ -277,6 +282,11 @@ export class UpdateProductDto {
   @IsOptional()
   @IsString()
   directionToUse?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  videoUrl?: string;
 
   @ApiProperty({ required: false })
   @IsOptional()
@@ -725,6 +735,11 @@ export class CreateProductWithVariantsDto {
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
+  videoUrl?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
   additionalInfo?: string;
 
   @ApiProperty({ required: false })
@@ -860,6 +875,9 @@ export class ProductWithVariantsDto {
 
   @ApiProperty({ required: false })
   directionToUse?: string;
+
+  @ApiProperty({ required: false })
+  videoUrl?: string;
 
   @ApiProperty({ required: false })
   additionalInfo?: string;
