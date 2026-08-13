@@ -5,7 +5,7 @@ import {
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, Like, ILike, MoreThanOrEqual, LessThanOrEqual, In, DataSource } from "typeorm";
-import { Product, ProductVariant, Inventory, Category, Brand } from "../../database/entities";
+import { Product, ProductVariant, Inventory, Category, Brand, Department } from "../../database/entities";
 import { ProductOption } from "../../database/entities/product-option.entity";
 import { ProductOptionValue } from "../../database/entities/product-option-value.entity";
 import { VariantOption } from "../../database/entities/variant-option.entity";
@@ -36,6 +36,8 @@ export class ProductsService {
     private categoryRepository: Repository<Category>,
     @InjectRepository(Brand)
     private brandRepository: Repository<Brand>,
+    @InjectRepository(Department)
+    private departmentRepository: Repository<Department>,
     @InjectRepository(ProductOption)
     private productOptionRepository: Repository<ProductOption>,
     @InjectRepository(ProductOptionValue)
@@ -278,11 +280,12 @@ export class ProductsService {
       .leftJoinAndSelect('product.category', 'category')
       .leftJoinAndSelect('product.brandEntity', 'brandEntity')
       .leftJoinAndSelect('product.departments', 'departments')
-      .where('product.isActive = :isActive', { isActive: true });
+      .where('product.isActive = :isActive', { isActive: true })
+      .distinct();
 
     if (search) {
       queryBuilder.andWhere(
-        '(product.name LIKE :search OR product.description LIKE :search OR product.sku LIKE :search)',
+        '(product.name LIKE :search OR product.description LIKE :search OR product.sku LIKE :search OR brandEntity.name LIKE :search OR category.name LIKE :search OR departments.name LIKE :search)',
         { search: `%${search}%` },
       );
     }
@@ -384,7 +387,7 @@ export class ProductsService {
 
     if (search) {
       totalQueryBuilder.andWhere(
-        '(product.name LIKE :search OR product.description LIKE :search OR product.sku LIKE :search)',
+        '(product.name LIKE :search OR product.description LIKE :search OR product.sku LIKE :search OR brandEntity.name LIKE :search OR category.name LIKE :search OR departments.name LIKE :search)',
         { search: `%${search}%` },
       );
     }
@@ -1090,7 +1093,7 @@ export class ProductsService {
   async globalSearch(query: string, limit = 6) {
     const trimmed = (query || "").trim();
     if (!trimmed) {
-      return { products: [], categories: [], brands: [] };
+      return { products: [], categories: [], brands: [], departments: [] };
     }
 
     const limitNum = Math.min(Math.max(limit, 1), 12);
@@ -1099,12 +1102,14 @@ export class ProductsService {
       .createQueryBuilder("product")
       .leftJoinAndSelect("product.category", "category")
       .leftJoinAndSelect("product.brandEntity", "brandEntity")
+      .leftJoin("product.departments", "departments")
       .where(
-        "(product.name LIKE :query OR product.description LIKE :query OR product.sku LIKE :query OR product.brand LIKE :query OR brandEntity.name LIKE :query)",
+        "(product.name LIKE :query OR product.description LIKE :query OR product.sku LIKE :query OR product.brand LIKE :query OR brandEntity.name LIKE :query OR category.name LIKE :query OR departments.name LIKE :query)",
         { query: `%${trimmed}%` },
       )
       .andWhere("product.isActive = :isActive", { isActive: true })
       .orderBy("product.name", "ASC")
+      .distinct()
       .take(limitNum * 3)
       .getMany();
 
@@ -1133,7 +1138,20 @@ export class ProductsService {
       .take(4)
       .getMany();
 
-    return { products: products.slice(0, limitNum), categories, brands };
+    const departments = await this.departmentRepository
+      .createQueryBuilder("department")
+      .where("department.name LIKE :query", { query: `%${trimmed}%` })
+      .andWhere("department.isActive = :isActive", { isActive: true })
+      .orderBy("department.name", "ASC")
+      .take(4)
+      .getMany();
+
+    return {
+      products: products.slice(0, limitNum),
+      categories,
+      brands,
+      departments,
+    };
   }
 
   async getRecommendedByCategories(categorySlugs: string[], excludeProductIds: number[], limit = 8) {
