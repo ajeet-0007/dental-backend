@@ -17,14 +17,14 @@ export class HomepageCategoriesService {
     private productRepository: Repository<Product>,
   ) {}
 
-  async findAllForHome(): Promise<{ category: Category; products: Product[] }[]> {
+  async findAllForHome(): Promise<{ category: Category; products: Product[]; count: number }[]> {
     const sections = await this.homepageCategoryRepository.find({
       where: { isActive: true },
       relations: ["category"],
       order: { sortOrder: "ASC", id: "ASC" },
     });
 
-    const result: { category: Category; products: Product[] }[] = [];
+    const result: { category: Category; products: Product[]; count: number }[] = [];
 
     for (const section of sections) {
       if (!section.category || !section.category.isActive) continue;
@@ -36,7 +36,11 @@ export class HomepageCategoriesService {
         take: PRODUCTS_PER_CATEGORY,
       });
 
-      result.push({ category: section.category, products });
+      const count = await this.productRepository.count({
+        where: { categoryId: String(section.categoryId), isActive: true },
+      });
+
+      result.push({ category: section.category, products, count });
     }
 
     return result;

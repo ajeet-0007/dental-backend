@@ -17,14 +17,14 @@ export class HomepageBrandsService {
     private productRepository: Repository<Product>,
   ) {}
 
-  async findAllForHome(): Promise<{ brand: Brand; products: Product[] }[]> {
+  async findAllForHome(): Promise<{ brand: Brand; products: Product[]; count: number }[]> {
     const sections = await this.homepageBrandRepository.find({
       where: { isActive: true },
       relations: ["brand"],
       order: { sortOrder: "ASC", id: "ASC" },
     });
 
-    const result: { brand: Brand; products: Product[] }[] = [];
+    const result: { brand: Brand; products: Product[]; count: number }[] = [];
 
     for (const section of sections) {
       if (!section.brand || !section.brand.isActive) continue;
@@ -36,7 +36,11 @@ export class HomepageBrandsService {
         take: PRODUCTS_PER_BRAND,
       });
 
-      result.push({ brand: section.brand, products });
+      const count = await this.productRepository.count({
+        where: { brandId: section.brandId, isActive: true },
+      });
+
+      result.push({ brand: section.brand, products, count });
     }
 
     return result;

@@ -17,14 +17,14 @@ export class HomepageDepartmentsService {
     private productRepository: Repository<Product>,
   ) {}
 
-  async findAllForHome(): Promise<{ department: Department; products: Product[] }[]> {
+  async findAllForHome(): Promise<{ department: Department; products: Product[]; count: number }[]> {
     const sections = await this.homepageDepartmentRepository.find({
       where: { isActive: true },
       relations: ["department"],
       order: { sortOrder: "ASC", id: "ASC" },
     });
 
-    const result: { department: Department; products: Product[] }[] = [];
+    const result: { department: Department; products: Product[]; count: number }[] = [];
 
     for (const section of sections) {
       if (!section.department || !section.department.isActive) continue;
@@ -44,7 +44,16 @@ export class HomepageDepartmentsService {
         .take(PRODUCTS_PER_DEPARTMENT)
         .getMany();
 
-      result.push({ department: section.department, products });
+      const count = await this.productRepository
+        .createQueryBuilder("product")
+        .innerJoin("product.departments", "departments")
+        .where("product.isActive = :isActive", { isActive: true })
+        .andWhere("departments.id = :departmentId", {
+          departmentId: section.departmentId,
+        })
+        .getCount();
+
+      result.push({ department: section.department, products, count });
     }
 
     return result;
