@@ -19,7 +19,7 @@ export class CategoriesService {
   ) {}
 
   async create(createCategoryDto: CreateCategoryDto): Promise<Category> {
-    const slug = createCategoryDto.slug || slugify(createCategoryDto.name);
+    const slug = slugify(createCategoryDto.slug || createCategoryDto.name);
 
     const existingCategory = await this.categoryRepository.findOne({
       where: { slug },
@@ -116,6 +116,7 @@ export class CategoriesService {
     if (updateCategoryDto.name && updateCategoryDto.name !== category.name) {
       updateCategoryDto.slug =
         updateCategoryDto.slug || slugify(updateCategoryDto.name);
+      updateCategoryDto.slug = slugify(updateCategoryDto.slug);
     }
 
     const previousImage = category.image;

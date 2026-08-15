@@ -14,6 +14,7 @@ import { ProductOptionValue } from "../../database/entities/product-option-value
 import { Department } from "../../database/entities/department.entity";
 import { Brand, Shipment, ShipmentStatus } from "../../database/entities";
 import { ShippingRocketService } from "../shipping/shipping-rocket.service";
+import { slugify } from "../../common/utils/slugify";
 import { AdminProductQueryDto } from "./dto/admin-product-query.dto";
 import { ImageKitService } from "../imagekit/imagekit.service";
 
@@ -821,12 +822,7 @@ export class AdminService {
     slug?: string;
     description?: string;
   }) {
-    const slug =
-      categoryData.slug ||
-      categoryData.name
-        .toLowerCase()
-        .replace(/\s+/g, "-")
-        .replace(/[^a-z0-9-]/g, "");
+    const slug = slugify(categoryData.slug || categoryData.name);
 
     const existingCategory = await this.categoryRepository.findOne({
       where: { slug },

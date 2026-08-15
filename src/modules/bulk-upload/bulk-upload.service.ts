@@ -570,7 +570,7 @@ export class BulkUploadService {
           }
         }
 
-        const productSlug = group.productData.slug?.trim() || slugify(group.productData.name);
+        const productSlug = slugify(group.productData.slug?.trim() || group.productData.name);
         const existingSlug = await this.productRepository.findOne({ where: { slug: productSlug } });
         let finalSlug = productSlug;
         if (existingSlug) {

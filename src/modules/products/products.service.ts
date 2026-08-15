@@ -50,7 +50,7 @@ export class ProductsService {
   ) {}
 
   async create(createProductDto: CreateProductDto): Promise<Product> {
-    const slug = createProductDto.slug || slugify(createProductDto.name);
+    const slug = slugify(createProductDto.slug || createProductDto.name);
 
     const existingProduct = await this.productRepository.findOne({
       where: { slug },
@@ -84,7 +84,7 @@ export class ProductsService {
   async createWithVariants(
     dto: CreateProductWithVariantsDto,
   ): Promise<any> {
-    const slug = dto.slug || slugify(dto.name);
+    const slug = slugify(dto.slug || dto.name);
 
     const existingProduct = await this.productRepository.findOne({
       where: { slug },
@@ -546,6 +546,7 @@ export class ProductsService {
     if (updateProductDto.name && updateProductDto.name !== product.name) {
       updateProductDto.slug =
         updateProductDto.slug || slugify(updateProductDto.name);
+      updateProductDto.slug = slugify(updateProductDto.slug);
     }
 
     if (updateProductDto.options !== undefined) {

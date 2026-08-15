@@ -15,7 +15,7 @@ export class BrandsService {
   ) {}
 
   async create(createBrandDto: CreateBrandDto): Promise<Brand> {
-    const slug = createBrandDto.slug || slugify(createBrandDto.name);
+    const slug = slugify(createBrandDto.slug || createBrandDto.name);
 
     const existingBrand = await this.brandRepository.findOne({
       where: { slug },
@@ -144,6 +144,7 @@ export class BrandsService {
     if (updateBrandDto.name && updateBrandDto.name !== brand.name) {
       updateBrandDto.slug =
         updateBrandDto.slug || slugify(updateBrandDto.name);
+      updateBrandDto.slug = slugify(updateBrandDto.slug);
     }
 
     const previousLogo = brand.logo;

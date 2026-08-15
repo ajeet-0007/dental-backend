@@ -15,7 +15,7 @@ export class DepartmentsService {
   ) {}
 
   async create(createDepartmentDto: CreateDepartmentDto): Promise<Department> {
-    const slug = createDepartmentDto.slug || slugify(createDepartmentDto.name);
+    const slug = slugify(createDepartmentDto.slug || createDepartmentDto.name);
 
     const existingDepartment = await this.departmentRepository.findOne({
       where: { slug },
@@ -159,6 +159,7 @@ export class DepartmentsService {
     if (updateDepartmentDto.name && updateDepartmentDto.name !== department.name) {
       updateDepartmentDto.slug =
         updateDepartmentDto.slug || slugify(updateDepartmentDto.name);
+      updateDepartmentDto.slug = slugify(updateDepartmentDto.slug);
     }
 
     const previousImage = department.image;
