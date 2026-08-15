@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ConflictException } from "@nestjs/common
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { HomepageCategory, Category, Product } from "../../database/entities";
+import { leanProductQuery } from "../../common/utils/lean-product";
 import { CreateHomepageCategoryDto, UpdateHomepageCategoryDto } from "./dto/homepage-category.dto";
 
 const PRODUCTS_PER_CATEGORY = 10;
@@ -24,26 +25,58 @@ export class HomepageCategoriesService {
       order: { sortOrder: "ASC", id: "ASC" },
     });
 
-    const result: { category: Category; products: Product[]; count: number }[] = [];
+    const activeSections = sections.filter(
+      (section) => section.category && section.category.isActive,
+    );
 
-    for (const section of sections) {
-      if (!section.category || !section.category.isActive) continue;
+    const categoryIds = activeSections.map((section) => String(section.categoryId));
 
-      const products = await this.productRepository.find({
-        where: { categoryId: String(section.categoryId), isActive: true },
-        relations: ["category", "brandEntity", "inventories"],
-        order: { isFeatured: "DESC", createdAt: "DESC" },
-        take: PRODUCTS_PER_CATEGORY,
-      });
+    const productsByCategory = new Map<string, Product[]>();
+    const countsByCategory = new Map<string, number>();
 
-      const count = await this.productRepository.count({
-        where: { categoryId: String(section.categoryId), isActive: true },
-      });
+    if (categoryIds.length > 0) {
+      const products = await leanProductQuery(
+        this.productRepository
+          .createQueryBuilder("product")
+          .where("product.categoryId IN (:...categoryIds)", { categoryIds })
+          .andWhere("product.isActive = :isActive", { isActive: true })
+          .orderBy("product.isFeatured", "DESC")
+          .addOrderBy("product.createdAt", "DESC"),
+      )
+        .addSelect("product.categoryId")
+        .getMany();
 
-      result.push({ category: section.category, products, count });
+      for (const product of products) {
+        const key = String(product.categoryId);
+        const list = productsByCategory.get(key) || [];
+        list.push(product);
+        productsByCategory.set(key, list);
+      }
+
+      const countRows: { categoryId: string; count: string }[] =
+        await this.productRepository
+          .createQueryBuilder("product")
+          .select("product.categoryId", "categoryId")
+          .addSelect("COUNT(*)", "count")
+          .where("product.categoryId IN (:...categoryIds)", { categoryIds })
+          .andWhere("product.isActive = :isActive", { isActive: true })
+          .groupBy("product.categoryId")
+          .getRawMany();
+
+      for (const row of countRows) {
+        countsByCategory.set(
+          String(row.categoryId),
+          parseInt(String(row.count), 10) || 0,
+        );
+      }
     }
 
-    return result;
+    return activeSections.map((section) => ({
+      category: section.category,
+      products:
+        (productsByCategory.get(String(section.categoryId)) || []).slice(0, PRODUCTS_PER_CATEGORY),
+      count: countsByCategory.get(String(section.categoryId)) || 0,
+    }));
   }
 
   async findAllForAdmin(): Promise<HomepageCategory[]> {

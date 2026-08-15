@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ConflictException } from "@nestjs/common
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { HomepageDepartment, Department, Product } from "../../database/entities";
+import { leanProductQuery } from "../../common/utils/lean-product";
 import { CreateHomepageDepartmentDto, UpdateHomepageDepartmentDto } from "./dto/homepage-department.dto";
 
 const PRODUCTS_PER_DEPARTMENT = 10;
@@ -24,39 +25,94 @@ export class HomepageDepartmentsService {
       order: { sortOrder: "ASC", id: "ASC" },
     });
 
-    const result: { department: Department; products: Product[]; count: number }[] = [];
+    const activeSections = sections.filter(
+      (section) => section.department && section.department.isActive,
+    );
 
-    for (const section of sections) {
-      if (!section.department || !section.department.isActive) continue;
+    const departmentIds = activeSections.map((section) => section.departmentId);
 
-      const products = await this.productRepository
-        .createQueryBuilder("product")
-        .innerJoinAndSelect("product.departments", "departments")
-        .leftJoinAndSelect("product.category", "category")
-        .leftJoinAndSelect("product.brandEntity", "brandEntity")
-        .leftJoinAndSelect("product.inventories", "inventories")
-        .where("product.isActive = :isActive", { isActive: true })
-        .andWhere("departments.id = :departmentId", {
-          departmentId: section.departmentId,
-        })
-        .orderBy("product.isFeatured", "DESC")
-        .addOrderBy("product.createdAt", "DESC")
-        .take(PRODUCTS_PER_DEPARTMENT)
-        .getMany();
+    const productsByDepartment = new Map<number, Product[]>();
+    const countsByDepartment = new Map<number, number>();
 
-      const count = await this.productRepository
-        .createQueryBuilder("product")
-        .innerJoin("product.departments", "departments")
-        .where("product.isActive = :isActive", { isActive: true })
-        .andWhere("departments.id = :departmentId", {
-          departmentId: section.departmentId,
-        })
-        .getCount();
+    if (departmentIds.length > 0) {
+      const products = await leanProductQuery(
+        this.productRepository
+          .createQueryBuilder("product")
+          .where("product.isActive = :isActive", { isActive: true })
+          .andWhere(
+            (qb) =>
+              "product.id IN " +
+              qb
+                .subQuery()
+                .select("productDepartment.productId")
+                .from("product_departments", "productDepartment")
+                .where("productDepartment.departmentId IN (:...departmentIds)", {
+                  departmentIds,
+                })
+                .getQuery(),
+          )
+          .orderBy("product.isFeatured", "DESC")
+          .addOrderBy("product.createdAt", "DESC"),
+      ).getMany();
 
-      result.push({ department: section.department, products, count });
+      const productsById = new Map<number, Product>();
+      for (const product of products) {
+        productsById.set(product.id, product);
+      }
+
+      const departmentProductRows: { productId: number; departmentId: number }[] =
+        await this.productRepository.manager
+          .createQueryBuilder()
+          .select("productDepartment.productId", "productId")
+          .addSelect("productDepartment.departmentId", "departmentId")
+          .from("product_departments", "productDepartment")
+          .where("productDepartment.departmentId IN (:...departmentIds)", {
+            departmentIds,
+          })
+          .getRawMany();
+
+      for (const row of departmentProductRows) {
+        const product = productsById.get(Number(row.productId));
+        if (!product) continue;
+        const list = productsByDepartment.get(Number(row.departmentId)) || [];
+        list.push(product);
+        productsByDepartment.set(Number(row.departmentId), list);
+      }
+
+      for (const [departmentId, list] of productsByDepartment) {
+        list.sort(
+          (a, b) =>
+            Number(b.isFeatured) - Number(a.isFeatured) ||
+            b.createdAt.getTime() - a.createdAt.getTime(),
+        );
+        productsByDepartment.set(departmentId, list);
+      }
+
+      const countRows: { departmentId: number; count: string }[] =
+        await this.productRepository
+          .createQueryBuilder("product")
+          .innerJoin("product.departments", "departments")
+          .select("departments.id", "departmentId")
+          .addSelect("COUNT(DISTINCT product.id)", "count")
+          .where("product.isActive = :isActive", { isActive: true })
+          .andWhere("departments.id IN (:...departmentIds)", { departmentIds })
+          .groupBy("departments.id")
+          .getRawMany();
+
+      for (const row of countRows) {
+        countsByDepartment.set(
+          Number(row.departmentId),
+          parseInt(String(row.count), 10) || 0,
+        );
+      }
     }
 
-    return result;
+    return activeSections.map((section) => ({
+      department: section.department,
+      products:
+        (productsByDepartment.get(section.departmentId) || []).slice(0, PRODUCTS_PER_DEPARTMENT),
+      count: countsByDepartment.get(section.departmentId) || 0,
+    }));
   }
 
   async findAllForAdmin(): Promise<HomepageDepartment[]> {

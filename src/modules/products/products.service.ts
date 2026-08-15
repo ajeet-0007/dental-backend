@@ -21,6 +21,7 @@ import {
   ProductOptionValueDto,
 } from "./dto/product.dto";
 import { slugify, generateSKU } from "../../common/utils/slugify";
+import { leanProductQuery } from "../../common/utils/lean-product";
 import { ImageKitService } from "../imagekit/imagekit.service";
 
 @Injectable()
@@ -933,93 +934,32 @@ export class ProductsService {
   }
 
   async getFeaturedProducts(limit = 10): Promise<Product[]> {
-    // First, get all featured products with their relations
-    const products = await this.productRepository.find({
-      where: { isFeatured: true, isActive: true },
-      relations: ["category", "brandEntity", "departments", "inventories", "variants"],
-      take: limit,
-      order: { createdAt: "DESC" },
-    });
-
-    if (!products || products.length === 0) {
-      return products;
-    }
-
-    // For products WITH variants, we need to fetch variant inventory separately
-    const productsWithVariants = products.filter(
-      (p) => p.hasVariants && p.variants && p.variants.length > 0,
-    );
-
-    if (productsWithVariants.length > 0) {
-      // Get all variant IDs
-      const variantIds: string[] = [];
-      productsWithVariants.forEach((p) => {
-        p.variants.forEach((v) => {
-          variantIds.push(v.id);
-        });
-      });
-
-      // Fetch variant-level inventory
-      const variantInventories = await this.inventoryRepository.find({
-        where: { productVariantId: In(variantIds) },
-      });
-
-      // Create a map for quick lookup
-      const variantInventoryMap = new Map<string, Inventory[]>();
-      variantInventories.forEach((inv) => {
-        const list = variantInventoryMap.get(inv.productVariantId!) || [];
-        list.push(inv);
-        variantInventoryMap.set(inv.productVariantId!, list);
-      });
-
-      // Add variant inventory to each product
-      products.forEach((p) => {
-        if (p.hasVariants && p.variants && p.variants.length > 0) {
-          const varInv: Inventory[] = [];
-          p.variants.forEach((v) => {
-            const inv = variantInventoryMap.get(v.id);
-            if (inv) {
-              varInv.push(...inv);
-            }
-          });
-          // Add variant inventory to the product's inventory array
-          p.inventories = [...(p.inventories || []), ...varInv];
-        }
-      });
-    }
-
-    products.forEach((p) => {
-      const totalStock = (p.inventories || []).reduce(
-        (sum: number, inv: any) => sum + (inv.quantity - inv.reservedQuantity),
-        0,
-      );
-      
-      // Debug specific products that might be showing out of stock
-      if (p.name && p.name.toLowerCase().includes('oro')) {
-        // TODO: debug ORO product details
-      }
-    });
-
-    return products;
+    return leanProductQuery(
+      this.productRepository
+        .createQueryBuilder("product")
+        .where("product.isFeatured = :isFeatured", { isFeatured: true })
+        .andWhere("product.isActive = :isActive", { isActive: true })
+        .orderBy("product.createdAt", "DESC"),
+    )
+      .take(limit)
+      .getMany();
   }
 
   async getTopSellingProducts(limit = 20): Promise<Product[]> {
     const MIN_PRICE = 500;
     const MAX_PRICE = 1500;
 
-    const products = await this.productRepository
-      .createQueryBuilder("product")
-      .leftJoinAndSelect("product.category", "category")
-      .leftJoinAndSelect("product.brandEntity", "brandEntity")
-      .leftJoinAndSelect("product.inventories", "inventory")
-      .where("product.isActive = :isActive", { isActive: true })
-      .andWhere("product.sellingPrice >= :minPrice", { minPrice: MIN_PRICE })
-      .andWhere("product.sellingPrice <= :maxPrice", { maxPrice: MAX_PRICE })
-      .orderBy("RAND()")
+    return leanProductQuery(
+      this.productRepository
+        .createQueryBuilder("product")
+        .where("product.isActive = :isActive", { isActive: true })
+        .andWhere("product.sellingPrice >= :minPrice", { minPrice: MIN_PRICE })
+        .andWhere("product.sellingPrice <= :maxPrice", { maxPrice: MAX_PRICE })
+        .orderBy("product.isFeatured", "DESC")
+        .addOrderBy("product.createdAt", "DESC"),
+    )
       .take(limit)
       .getMany();
-
-    return products;
   }
 
   async getRelatedProducts(productId: string, limit = 10): Promise<Product[]> {

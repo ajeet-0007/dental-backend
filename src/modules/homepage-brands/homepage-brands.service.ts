@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ConflictException } from "@nestjs/common
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { HomepageBrand, Brand, Product } from "../../database/entities";
+import { leanProductQuery } from "../../common/utils/lean-product";
 import { CreateHomepageBrandDto, UpdateHomepageBrandDto } from "./dto/homepage-brand.dto";
 
 const PRODUCTS_PER_BRAND = 10;
@@ -24,26 +25,57 @@ export class HomepageBrandsService {
       order: { sortOrder: "ASC", id: "ASC" },
     });
 
-    const result: { brand: Brand; products: Product[]; count: number }[] = [];
+    const activeSections = sections.filter(
+      (section) => section.brand && section.brand.isActive,
+    );
 
-    for (const section of sections) {
-      if (!section.brand || !section.brand.isActive) continue;
+    const brandIds = activeSections.map((section) => section.brandId);
 
-      const products = await this.productRepository.find({
-        where: { brandId: section.brandId, isActive: true },
-        relations: ["category", "brandEntity", "inventories"],
-        order: { isFeatured: "DESC", createdAt: "DESC" },
-        take: PRODUCTS_PER_BRAND,
-      });
+    const productsByBrand = new Map<number, Product[]>();
+    const countsByBrand = new Map<number, number>();
 
-      const count = await this.productRepository.count({
-        where: { brandId: section.brandId, isActive: true },
-      });
+    if (brandIds.length > 0) {
+      const products = await leanProductQuery(
+        this.productRepository
+          .createQueryBuilder("product")
+          .where("product.brandId IN (:...brandIds)", { brandIds })
+          .andWhere("product.isActive = :isActive", { isActive: true })
+          .orderBy("product.isFeatured", "DESC")
+          .addOrderBy("product.createdAt", "DESC"),
+      )
+        .addSelect("product.brandId")
+        .getMany();
 
-      result.push({ brand: section.brand, products, count });
+      for (const product of products) {
+        const list = productsByBrand.get(product.brandId) || [];
+        list.push(product);
+        productsByBrand.set(product.brandId, list);
+      }
+
+      const countRows: { brandId: number; count: string }[] =
+        await this.productRepository
+          .createQueryBuilder("product")
+          .select("product.brandId", "brandId")
+          .addSelect("COUNT(*)", "count")
+          .where("product.brandId IN (:...brandIds)", { brandIds })
+          .andWhere("product.isActive = :isActive", { isActive: true })
+          .groupBy("product.brandId")
+          .getRawMany();
+
+      for (const row of countRows) {
+        countsByBrand.set(
+          Number(row.brandId),
+          parseInt(String(row.count), 10) || 0,
+        );
+      }
     }
 
-    return result;
+    return activeSections.map((section) => ({
+      brand: section.brand,
+      products:
+        (productsByBrand.get(section.brandId) || []).slice(0, PRODUCTS_PER_BRAND),
+      count: countsByBrand.get(section.brandId) || 0,
+    }));
   }
 
   async findAllForAdmin(): Promise<HomepageBrand[]> {

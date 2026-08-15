@@ -37,16 +37,59 @@ export class DepartmentsService {
     const query = this.departmentRepository
       .createQueryBuilder("department")
       .leftJoinAndSelect("department.categories", "categories")
-      .leftJoin("department.products", "product")
-      .loadRelationCountAndMap("department.categoryCount", "department.categories")
-      .loadRelationCountAndMap("department.productCount", "department.products")
       .orderBy("department.sortOrder", "ASC");
 
     if (activeOnly) {
       query.where("department.isActive = :isActive", { isActive: true });
     }
 
-    return query.getMany();
+    const departments = await query.getMany();
+
+    if (departments.length === 0) {
+      return departments;
+    }
+
+    const departmentIds = departments.map((department) => department.id);
+
+    const categoryCountRows: { departmentId: number; count: string }[] =
+      await this.departmentRepository.manager
+        .createQueryBuilder()
+        .select("categoryDepartment.departmentId", "departmentId")
+        .addSelect("COUNT(*)", "count")
+        .from("category_departments", "categoryDepartment")
+        .where("categoryDepartment.departmentId IN (:...departmentIds)", {
+          departmentIds,
+        })
+        .groupBy("categoryDepartment.departmentId")
+        .getRawMany();
+
+    const productCountRows: { departmentId: number; count: string }[] =
+      await this.departmentRepository.manager
+        .createQueryBuilder()
+        .select("productDepartment.departmentId", "departmentId")
+        .addSelect("COUNT(DISTINCT productDepartment.productId)", "count")
+        .from("product_departments", "productDepartment")
+        .where("productDepartment.departmentId IN (:...departmentIds)", {
+          departmentIds,
+        })
+        .groupBy("productDepartment.departmentId")
+        .getRawMany();
+
+    const categoryCounts = new Map<number, number>();
+    for (const row of categoryCountRows) {
+      categoryCounts.set(Number(row.departmentId), parseInt(String(row.count), 10) || 0);
+    }
+
+    const productCounts = new Map<number, number>();
+    for (const row of productCountRows) {
+      productCounts.set(Number(row.departmentId), parseInt(String(row.count), 10) || 0);
+    }
+
+    return departments.map((department) => ({
+      ...department,
+      categoryCount: categoryCounts.get(department.id) || 0,
+      productCount: productCounts.get(department.id) || 0,
+    }));
   }
 
   async findOne(id: string): Promise<Department> {
