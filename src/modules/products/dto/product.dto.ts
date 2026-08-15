@@ -523,6 +523,11 @@ export class ProductQueryDto {
   @IsBoolean()
   isFeatured?: boolean;
 
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsBoolean()
+  inStock?: boolean;
+
   @ApiProperty({ default: 1 })
   @IsOptional()
   @IsNumber()

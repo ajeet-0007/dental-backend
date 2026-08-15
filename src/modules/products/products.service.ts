@@ -250,6 +250,7 @@ export class ProductsService {
       minPrice,
       maxPrice,
       isFeatured,
+      inStock,
       page = 1,
       limit = 10,
       sortBy,
@@ -276,163 +277,166 @@ export class ProductsService {
       orderDirection = (sortOrder?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC') as 'ASC' | 'DESC';
     }
 
-    const queryBuilder = this.productRepository
-      .createQueryBuilder('product')
-      .leftJoinAndSelect('product.category', 'category')
-      .leftJoinAndSelect('product.brandEntity', 'brandEntity')
-      .leftJoinAndSelect('product.departments', 'departments')
-      .where('product.isActive = :isActive', { isActive: true })
-      .distinct();
+    const categoryList = categories
+      ? categories.split(',').map((c) => c.trim()).filter((c) => c)
+      : [];
+    const brandList = brand
+      ? brand.split(',').map((b) => b.trim().toLowerCase()).filter((b) => b)
+      : [];
+    const departmentList = departments
+      ? departments.split(',').map((d) => d.trim()).filter((d) => d)
+      : [];
 
-    if (search) {
-      queryBuilder.andWhere(
-        '(product.name LIKE :search OR product.description LIKE :search OR product.sku LIKE :search OR brandEntity.name LIKE :search OR category.name LIKE :search OR departments.name LIKE :search)',
-        { search: `%${search}%` },
-      );
-    }
+    const buildBaseQuery = () => {
+      const qb = this.productRepository.createQueryBuilder('product');
+      qb.where('product.isActive = :isActive', { isActive: true });
 
-    if (category) {
-      queryBuilder.andWhere('category.slug = :category', { category });
-    }
+      if (search) {
+        qb.andWhere(
+          `(product.name LIKE :search OR product.description LIKE :search OR product.sku LIKE :search
+            OR product.brand LIKE :search
+            OR product.categoryId IN (SELECT c.id FROM categories c WHERE c.name LIKE :search)
+            OR product.id IN (
+              SELECT pd.productId FROM product_departments pd
+              INNER JOIN departments d ON d.id = pd.departmentId
+              WHERE d.name LIKE :search
+            ))`,
+          { search: `%${search}%` },
+        );
+      }
 
-    if (categories) {
-      const categoryList = categories.split(',').map((c) => c.trim());
-      queryBuilder.andWhere('category.slug IN (:...categories)', { categories: categoryList });
-    }
+      if (category) {
+        qb.andWhere(
+          'product.categoryId IN (SELECT c.id FROM categories c WHERE c.slug = :category)',
+          { category },
+        );
+      }
 
-    if (brand) {
-      const brandList = brand.split(',').map((b) => b.trim().toLowerCase());
-      queryBuilder.andWhere('LOWER(brandEntity.slug) IN (:...brands)', { brands: brandList });
-    }
+      if (categoryList.length > 0) {
+        qb.andWhere(
+          'product.categoryId IN (SELECT c.id FROM categories c WHERE c.slug IN (:...categories))',
+          { categories: categoryList },
+        );
+      }
 
-    if (brandId) {
-      queryBuilder.andWhere('product.brandId = :brandId', { brandId });
-    }
+      if (brandList.length > 0) {
+        qb.andWhere(
+          'product.brandId IN (SELECT b.id FROM brands b WHERE LOWER(b.slug) IN (:...brands))',
+          { brands: brandList },
+        );
+      }
 
-    if (department) {
-      queryBuilder.andWhere('departments.slug = :department', { department });
-    }
+      if (brandId) {
+        qb.andWhere('product.brandId = :brandId', { brandId });
+      }
 
-    if (departments) {
-      const departmentList = departments.split(',').map((d) => d.trim());
-      queryBuilder.andWhere('departments.slug IN (:...departments)', { departments: departmentList });
-    }
+      if (department) {
+        qb.andWhere(
+          `product.id IN (
+            SELECT pd.productId FROM product_departments pd
+            INNER JOIN departments d ON d.id = pd.departmentId
+            WHERE d.slug = :department
+          )`,
+          { department },
+        );
+      }
 
-    if (minPrice) {
-      queryBuilder.andWhere('product.sellingPrice >= :minPrice', { minPrice });
-    }
+      if (departmentList.length > 0) {
+        qb.andWhere(
+          `product.id IN (
+            SELECT pd.productId FROM product_departments pd
+            INNER JOIN departments d ON d.id = pd.departmentId
+            WHERE d.slug IN (:...departments)
+          )`,
+          { departments: departmentList },
+        );
+      }
 
-    if (maxPrice) {
-      queryBuilder.andWhere('product.sellingPrice <= :maxPrice', { maxPrice });
-    }
+      if (minPrice) {
+        qb.andWhere('product.sellingPrice >= :minPrice', { minPrice });
+      }
 
-    if (isFeatured !== undefined) {
-      queryBuilder.andWhere('product.isFeatured = :isFeatured', { isFeatured });
-    }
+      if (maxPrice) {
+        qb.andWhere('product.sellingPrice <= :maxPrice', { maxPrice });
+      }
 
-    queryBuilder.orderBy(`product.${orderField}`, orderDirection);
-    queryBuilder.skip((page - 1) * limit).take(limit);
+      if (isFeatured !== undefined) {
+        qb.andWhere('product.isFeatured = :isFeatured', { isFeatured });
+      }
 
-    const products = await queryBuilder.getMany();
+      if (inStock !== undefined) {
+        qb.andWhere(
+          'EXISTS (SELECT 1 FROM inventory i WHERE i.productId = product.id AND i.quantity > i.reservedQuantity)',
+        );
+      }
+
+      return qb;
+    };
+
+    const listingFields = [
+      'product.id',
+      'product.name',
+      'product.slug',
+      'product.images',
+      'product.sellingPrice',
+      'product.mrp',
+      'product.unit',
+      'product.brand',
+      'product.brandId',
+      'product.categoryId',
+      'product.isActive',
+      'product.isFeatured',
+      'product.hasVariants',
+      'product.createdAt',
+    ];
+
+    const [products, total] = await Promise.all([
+      buildBaseQuery()
+        .select(listingFields)
+        .orderBy(`product.${orderField}`, orderDirection)
+        .skip((page - 1) * limit)
+        .take(limit)
+        .getMany(),
+      buildBaseQuery().getCount(),
+    ]);
+
     const productIds = products.map((p) => p.id);
+    const productIdsAsStrings = productIds.map((id) => String(id));
 
-    if (productIds.length > 0) {
-      const productIdsAsStrings = productIds.map((id) => String(id));
+    const [variants, inventories] =
+      productIds.length > 0
+        ? await Promise.all([
+            this.productVariantRepository.find({
+              where: { productId: In(productIdsAsStrings), isActive: true },
+            }),
+            this.inventoryRepository
+              .createQueryBuilder("inventory")
+              .where("inventory.productId IN (:...productIds)", { productIds: productIdsAsStrings })
+              .getMany(),
+          ])
+        : [[], []];
 
+    const variantsMap = new Map<string, ProductVariant[]>();
+    variants.forEach((v) => {
+      const key = String(v.productId);
+      const existing = variantsMap.get(key) || [];
+      existing.push(v);
+      variantsMap.set(key, existing);
+    });
 
-      const [variants, inventories] = await Promise.all([
-        this.productVariantRepository.find({
-          where: { productId: In(productIdsAsStrings), isActive: true },
-        }),
-        this.inventoryRepository
-          .createQueryBuilder("inventory")
-          .where("inventory.productId IN (:...productIds)", { productIds: productIdsAsStrings })
-          .getMany(),
-      ]);
+    const inventoriesMap = new Map<string, Inventory[]>();
+    inventories.forEach((i) => {
+      const key = String(i.productId);
+      const existing = inventoriesMap.get(key) || [];
+      existing.push(i);
+      inventoriesMap.set(key, existing);
+    });
 
-
-      const variantsMap = new Map<string, ProductVariant[]>();
-      variants.forEach((v) => {
-        const key = String(v.productId);
-        const existing = variantsMap.get(key) || [];
-        existing.push(v);
-        variantsMap.set(key, existing);
-      });
-
-      const inventoriesMap = new Map<string, Inventory[]>();
-      inventories.forEach((i) => {
-        const key = String(i.productId);
-        const existing = inventoriesMap.get(key) || [];
-        existing.push(i);
-        inventoriesMap.set(key, existing);
-      });
-
-      products.forEach((p) => {
-        const key = String(p.id);
-        p.variants = variantsMap.get(key) || [];
-        p.inventories = inventoriesMap.get(key) || [];
-      });
-    } else {
-      products.forEach((p) => {
-        p.variants = [];
-        p.inventories = [];
-      });
-    }
-
-    const totalQueryBuilder = this.productRepository
-      .createQueryBuilder('product')
-      .leftJoin('product.category', 'category')
-      .leftJoin('product.brandEntity', 'brandEntity')
-      .leftJoin('product.departments', 'departments')
-      .where('product.isActive = :isActive', { isActive: true });
-
-    if (search) {
-      totalQueryBuilder.andWhere(
-        '(product.name LIKE :search OR product.description LIKE :search OR product.sku LIKE :search OR brandEntity.name LIKE :search OR category.name LIKE :search OR departments.name LIKE :search)',
-        { search: `%${search}%` },
-      );
-    }
-
-    if (category) {
-      totalQueryBuilder.andWhere('category.slug = :category', { category });
-    }
-
-    if (categories) {
-      const categoryList = categories.split(',').map((c) => c.trim());
-      totalQueryBuilder.andWhere('category.slug IN (:...categories)', { categories: categoryList });
-    }
-
-    if (brand) {
-      const brandList = brand.split(',').map((b) => b.trim().toLowerCase());
-      totalQueryBuilder.andWhere('LOWER(brandEntity.slug) IN (:...brands)', { brands: brandList });
-    }
-
-    if (brandId) {
-      totalQueryBuilder.andWhere('product.brandId = :brandId', { brandId });
-    }
-
-    if (department) {
-      totalQueryBuilder.andWhere('departments.slug = :department', { department });
-    }
-
-    if (departments) {
-      const departmentList = departments.split(',').map((d) => d.trim());
-      totalQueryBuilder.andWhere('departments.slug IN (:...departments)', { departments: departmentList });
-    }
-
-    if (minPrice) {
-      totalQueryBuilder.andWhere('product.sellingPrice >= :minPrice', { minPrice });
-    }
-
-    if (maxPrice) {
-      totalQueryBuilder.andWhere('product.sellingPrice <= :maxPrice', { maxPrice });
-    }
-
-    if (isFeatured !== undefined) {
-      totalQueryBuilder.andWhere('product.isFeatured = :isFeatured', { isFeatured });
-    }
-
-    const total = await totalQueryBuilder.getCount();
+    products.forEach((p) => {
+      const key = String(p.id);
+      p.variants = variantsMap.get(key) || [];
+      p.inventories = inventoriesMap.get(key) || [];
+    });
 
     return {
       products,
