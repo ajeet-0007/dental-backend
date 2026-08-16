@@ -9,7 +9,9 @@ import {
   Get,
   Res,
   Req,
+  UnauthorizedException,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import {
@@ -25,8 +27,13 @@ import { AuthGuard } from '@nestjs/passport';
 import { GoogleRecaptchaGuard } from '@nestlab/google-recaptcha';
 import { Response, Request as ExpressRequest } from 'express';
 import { ConfigService } from '@nestjs/config';
-import * as jwt from 'jsonwebtoken';
+import axios from 'axios';
 import { OtpService } from '../otp/otp.service';
+import {
+  REFRESH_TOKEN_COOKIE,
+  setAuthCookies,
+  clearAuthCookies,
+} from './auth-cookies';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -38,6 +45,7 @@ export class AuthController {
   ) {}
 
   @Post('register')
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
   @UseGuards(GoogleRecaptchaGuard)
   @ApiOperation({ summary: 'Register a new user' })
   async register(@Body() registerDto: RegisterDto) {
@@ -46,17 +54,43 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @UseGuards(GoogleRecaptchaGuard)
   @ApiOperation({ summary: 'Login user' })
-  async login(@Body() loginDto: LoginDto) {
-    return this.authService.login(loginDto);
+  async login(
+    @Body() loginDto: LoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.login(loginDto);
+    setAuthCookies(res, this.configService, result.accessToken, result.refreshToken);
+    return { user: result.user };
   }
 
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @ApiOperation({ summary: 'Refresh access token' })
-  async refresh(@Body() refreshTokenDto: RefreshTokenDto) {
-    return this.authService.refreshTokens(refreshTokenDto);
+  async refresh(
+    @Body() refreshTokenDto: RefreshTokenDto,
+    @Req() req: ExpressRequest,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const refreshToken =
+      req.cookies?.[REFRESH_TOKEN_COOKIE] || refreshTokenDto.refreshToken;
+    if (!refreshToken) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+    const tokens = await this.authService.refreshTokens(refreshToken);
+    setAuthCookies(res, this.configService, tokens.accessToken, tokens.refreshToken);
+    return { message: 'OK' };
+  }
+
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get current authenticated user' })
+  async me(@Request() req: any) {
+    return this.authService.getMe(req.user.id);
   }
 
   @Post('logout')
@@ -64,13 +98,18 @@ export class AuthController {
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Logout user' })
-  async logout(@Request() req: any) {
+  async logout(
+    @Request() req: any,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     await this.authService.logout(req.user.id);
+    clearAuthCookies(res, this.configService);
     return { message: 'Logged out successfully' };
   }
 
   @Post('send-otp')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
   @ApiOperation({ summary: 'Send OTP to email' })
   async sendOtp(@Body() sendOtpDto: SendOtpDto) {
     return this.otpService.sendOtp(
@@ -81,13 +120,28 @@ export class AuthController {
 
   @Post('verify-otp')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiOperation({ summary: 'Verify OTP' })
-  async verifyOtp(@Body() verifyOtpDto: VerifyOtpDto) {
-    return this.authService.verifyOtp(verifyOtpDto);
+  async verifyOtp(
+    @Body() verifyOtpDto: VerifyOtpDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.verifyOtp(verifyOtpDto);
+    if ('accessToken' in result) {
+      setAuthCookies(
+        res,
+        this.configService,
+        result.accessToken,
+        result.refreshToken,
+      );
+      return { user: result.user };
+    }
+    return result;
   }
 
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
   @UseGuards(GoogleRecaptchaGuard)
   @ApiOperation({ summary: 'Send password reset OTP' })
   async forgotPassword(@Body() body: { email: string }) {
@@ -96,24 +150,54 @@ export class AuthController {
 
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiOperation({ summary: 'Reset password with OTP' })
-  async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
-    return this.authService.resetPassword(resetPasswordDto);
+  async resetPassword(
+    @Body() resetPasswordDto: ResetPasswordDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.resetPassword(resetPasswordDto);
+    setAuthCookies(res, this.configService, result.accessToken, result.refreshToken);
+    return { user: result.user };
   }
 
   @Post('google/token')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @UseGuards(GoogleRecaptchaGuard)
   @ApiOperation({ summary: 'Verify Google token and login/register user' })
-  async googleToken(@Body() body: { token: string }) {
+  async googleToken(
+    @Body() body: { token: string },
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const { token } = body;
-
-    const decoded = jwt.decode(token) as any;
-
-    if (!decoded) {
-      throw new Error('Invalid token');
+    if (!token) {
+      throw new UnauthorizedException('Invalid token');
     }
 
-    const { email, name, picture, sub: googleId } = decoded;
+    const clientId = this.configService.get('GOOGLE_CLIENT_ID');
+
+    let payload: any;
+    try {
+      const { data } = await axios.get(
+        'https://oauth2.googleapis.com/tokeninfo',
+        { params: { id_token: token }, timeout: 10000 },
+      );
+      payload = data;
+    } catch {
+      throw new UnauthorizedException('Invalid token');
+    }
+
+    if (
+      !payload ||
+      !payload.sub ||
+      !payload.email ||
+      payload.aud !== clientId
+    ) {
+      throw new UnauthorizedException('Invalid token');
+    }
+
+    const { email, name, picture, sub: googleId } = payload;
     const firstName = name?.split(' ')[0] || '';
     const lastName = name?.split(' ').slice(1).join(' ') || '';
 
@@ -126,7 +210,8 @@ export class AuthController {
       avatar: picture,
     });
 
-    return result;
+    setAuthCookies(res, this.configService, result.accessToken, result.refreshToken);
+    return { user: result.user };
   }
 
   @Get('google')
@@ -138,16 +223,10 @@ export class AuthController {
   @UseGuards(AuthGuard('google'))
   @ApiOperation({ summary: 'Google OAuth callback' })
   googleAuthCallback(@Req() req: any, @Res() res: Response) {
-    const { user, accessToken, refreshToken } = req.user;
-    let frontendUrl =
-      this.configService.get('FRONTEND_URL') || 'http://localhost:5173';
-    frontendUrl = frontendUrl.replace(/\/$/, '');
-    const tokenPayload = Buffer.from(
-      JSON.stringify({ accessToken, refreshToken, user }),
-    ).toString('base64');
-    res.redirect(
-      `${frontendUrl}/auth/callback?token=${tokenPayload}`,
-    );
+    const { accessToken, refreshToken } = req.user;
+    const frontendUrl = this.getFrontendUrl();
+    setAuthCookies(res, this.configService, accessToken, refreshToken);
+    res.redirect(`${frontendUrl}/auth/callback`);
   }
 
   @Get('facebook')
@@ -159,16 +238,10 @@ export class AuthController {
   @UseGuards(AuthGuard('facebook'))
   @ApiOperation({ summary: 'Facebook OAuth callback' })
   facebookAuthCallback(@Req() req: any, @Res() res: Response) {
-    const { user, accessToken, refreshToken } = req.user;
-    let frontendUrl =
-      this.configService.get('FRONTEND_URL') || 'http://localhost:5173';
-    frontendUrl = frontendUrl.replace(/\/$/, '');
-    const tokenPayload = Buffer.from(
-      JSON.stringify({ accessToken, refreshToken, user }),
-    ).toString('base64');
-    res.redirect(
-      `${frontendUrl}/auth/callback?token=${tokenPayload}`,
-    );
+    const { accessToken, refreshToken } = req.user;
+    const frontendUrl = this.getFrontendUrl();
+    setAuthCookies(res, this.configService, accessToken, refreshToken);
+    res.redirect(`${frontendUrl}/auth/callback`);
   }
 
   @Get('apple')
@@ -180,15 +253,15 @@ export class AuthController {
   @UseGuards(AuthGuard('apple'))
   @ApiOperation({ summary: 'Apple OAuth callback' })
   appleAuthCallback(@Req() req: any, @Res() res: Response) {
-    const { user, accessToken, refreshToken } = req.user;
+    const { accessToken, refreshToken } = req.user;
+    const frontendUrl = this.getFrontendUrl();
+    setAuthCookies(res, this.configService, accessToken, refreshToken);
+    res.redirect(`${frontendUrl}/auth/callback`);
+  }
+
+  private getFrontendUrl(): string {
     let frontendUrl =
       this.configService.get('FRONTEND_URL') || 'http://localhost:5173';
-    frontendUrl = frontendUrl.replace(/\/$/, '');
-    const tokenPayload = Buffer.from(
-      JSON.stringify({ accessToken, refreshToken, user }),
-    ).toString('base64');
-    res.redirect(
-      `${frontendUrl}/auth/callback?token=${tokenPayload}`,
-    );
+    return frontendUrl.replace(/\/$/, '');
   }
 }

@@ -39,9 +39,9 @@ Client                         AuthService                         Database
   │                               │  update user.refreshToken        │
   │                               │ ──────────────────────────────►  │
   │                               │                                  │
-  │  ◄── { user(no pwd),         │                                  │
-  │        accessToken,           │                                  │
-  │        refreshToken }         │                                  │
+  │  ◄── { user(no pwd) }         │                                  │
+  │       + httpOnly cookies       │                                  │
+  │       (accessToken, refreshToken)                                │
 ```
 
 ### Login Flow
@@ -52,19 +52,20 @@ Client                         AuthService                         Database
   │  POST /auth/login             │                                  │
   │  { email, password }          │                                  │
   │ ──────────────────────────►   │                                  │
+  │                               │  Check lockout store (brute-     │
+  │                               │    force protection)             │
   │                               │  Find user by email              │
   │                               │ ──────────────────────────────►  │
   │                               │ ◄── user ────────────────────── │
   │                               │                                  │
   │                               │  bcrypt.compare(password, hash)  │
   │                               │  Check user.isActive             │
-  │                               │                                  │
   │                               │  generateTokens(user)            │
   │                               │  updateRefreshToken()            │
   │                               │ ──────────────────────────────►  │
   │                               │                                  │
-  │  ◄── { user, accessToken,    │                                  │
-  │        refreshToken }         │                                  │
+  │  ◄── { user } + httpOnly     │                                  │
+  │       cookies                 │                                  │
 ```
 
 ### Social Login (Server-side OAuth)
@@ -95,9 +96,10 @@ Browser                     Backend                         OAuth Provider
   │                           │        └── not found → create    │
   │                           │                     new user     │
   │                           │                                  │
+  │                           │  Set httpOnly cookies            │
   │  ◄── redirect to          │                                  │
-  │  frontend with base64     │                                  │
-  │  token payload            │                                  │
+  │  frontend /auth/callback  │                                  │
+  │  (no token in URL)        │                                  │
 ```
 
 ### Token Refresh Flow
@@ -106,7 +108,8 @@ Browser                     Backend                         OAuth Provider
 Client                         AuthService                         Database
   │                               │                                  │
   │  POST /auth/refresh           │                                  │
-  │  { refreshToken }             │                                  │
+  │  (refreshToken via httpOnly   │                                  │
+  │   cookie, auto-sent)          │                                  │
   │ ──────────────────────────►   │                                  │
   │                               │  jwt.verify(refreshToken,        │
   │                               │    JWT_REFRESH_SECRET)           │
@@ -116,12 +119,15 @@ Client                         AuthService                         Database
   │                               │                                  │
   │                               │  bcrypt.compare(token, stored)   │
   │                               │                                  │
+  │                               │  If token matches a rotated-out  │
+  │                               │    token → revoke all sessions   │
+  │                               │                                  │
   │                               │  generateTokens(user) → new pair │
   │                               │  updateRefreshToken(newToken)    │
   │                               │ ──────────────────────────────►  │
   │                               │                                  │
-  │  ◄── { accessToken,          │                                  │
-  │        refreshToken }         │                                  │
+  │  ◄── 200 OK + rotated        │                                  │
+  │       httpOnly cookies        │                                  │
 ```
 
 ---
@@ -130,17 +136,26 @@ Client                         AuthService                         Database
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| POST | `/auth/register` | None | Register new user |
-| POST | `/auth/login` | None | Login with email/password |
-| POST | `/auth/refresh` | None | Refresh token pair |
-| POST | `/auth/logout` | JWT | Clear refresh token |
-| POST | `/auth/google/token` | None | Verify Google identity token (mobile/SPA) |
+| POST | `/auth/register` | None (reCAPTCHA) | Register new user (always issues OTP; uniform response prevents user enumeration) |
+| POST | `/auth/login` | None (reCAPTCHA) | Login with email/password; sets httpOnly cookies |
+| POST | `/auth/refresh` | None | Rotates tokens from refresh cookie; no token in body required |
+| GET | `/auth/me` | JWT | Return current authenticated user (used for session hydration) |
+| POST | `/auth/logout` | JWT | Clear refresh token + httpOnly cookies |
+| POST | `/auth/send-otp` | None | Send OTP email |
+| POST | `/auth/verify-otp` | None | Verify OTP; on login/register issues cookies |
+| POST | `/auth/forgot-password` | None (reCAPTCHA) | Send password-reset OTP |
+| POST | `/auth/reset-password` | None | Reset password; issues cookies |
+| POST | `/auth/google/token` | None (reCAPTCHA) | Verify Google ID token signature, then login/register |
 | GET | `/auth/google` | Google OAuth | Initiate Google OAuth |
-| GET | `/auth/google/callback` | Google OAuth | Google OAuth callback |
+| GET | `/auth/google/callback` | Google OAuth | Google OAuth callback (sets cookies, no token in URL) |
 | GET | `/auth/facebook` | Facebook OAuth | Initiate Facebook OAuth |
 | GET | `/auth/facebook/callback` | Facebook OAuth | Facebook OAuth callback |
 | GET | `/auth/apple` | Apple OAuth | Initiate Apple OAuth |
 | GET | `/auth/apple/callback` | Apple OAuth | Apple OAuth callback |
+
+> **Note:** Access/refresh tokens are delivered exclusively via `httpOnly` cookies (Secure in production,
+> SameSite configurable via `COOKIE_SAME_SITE`, default `lax`). The API no longer returns tokens in the
+> response body. The client hydrates the session via `GET /auth/me`.
 
 ---
 
@@ -150,10 +165,11 @@ Client                         AuthService                         Database
 
 | Method | Signature | Description |
 |---|---|---|
-| `register` | `(registerDto: RegisterDto): Promise<{ user, accessToken, refreshToken }>` | Create user, hash password, generate tokens |
-| `login` | `(loginDto: LoginDto): Promise<{ user, accessToken, refreshToken }>` | Validate credentials, issue tokens |
-| `refreshTokens` | `(refreshTokenDto: RefreshTokenDto): Promise<{ accessToken, refreshToken }>` | Verify refresh token, issue new pair |
+| `register` | `(registerDto: RegisterDto): Promise<{ message, email, requiresVerification }>` | Create user (role always `USER`), hash password, send OTP |
+| `login` | `(loginDto: LoginDto): Promise<{ user, accessToken, refreshToken }>` | Validate credentials (with brute-force lockout), issue tokens |
+| `refreshTokens` | `(refreshToken: string): Promise<{ accessToken, refreshToken }>` | Verify refresh token (with reuse detection), issue new pair |
 | `logout` | `(userId: string): Promise<void>` | Clear stored refresh token |
+| `getMe` | `(userId: string): Promise<User>` | Return sanitized current user |
 | `validateUser` | `(userId: string): Promise<User>` | JWT strategy callback: check user exists + active |
 | `validateSocialUser` | `(data: SocialUserData): Promise<{ user, accessToken, refreshToken }>` | 3-tier lookup: by providerId → by email → create new |
 
@@ -163,9 +179,9 @@ Client                         AuthService                         Database
 
 | DTO | Fields | Validation |
 |---|---|---|
-| `RegisterDto` | email, phone, password, firstName, lastName, isAdmin? | `@IsEmail`, `@IsNotEmpty`, `@MinLength(6)` |
+| `RegisterDto` | email, phone, password, firstName, lastName | `@IsEmail`, `@IsNotEmpty`, `@MinLength(8)` + complexity regex |
 | `LoginDto` | email, password | `@IsEmail`, `@IsNotEmpty` |
-| `RefreshTokenDto` | refreshToken | `@IsString`, `@IsNotEmpty` |
+| `RefreshTokenDto` | refreshToken? | `@IsOptional`, `@IsString` (token normally read from cookie) |
 
 ---
 
@@ -196,5 +212,13 @@ AuthModule
 - **Two secrets**: `JWT_SECRET` for access tokens, `JWT_REFRESH_SECRET` for refresh tokens
 - **Refresh tokens bcrypt-hashed** before storage (never stored in plain text)
 - **3-tier social login**: lookup by providerId → by email (linking) → create new
-- **Social callbacks** redirect to frontend with base64-encoded token payload (not JSON)
-- **Client-side Google Sign-In** supported via `POST /auth/google/token` (identity token)
+- **httpOnly cookies**: tokens are never exposed to JavaScript or placed in URL query strings
+- **Google ID tokens** (`/auth/google/token`) verified server-side against `https://oauth2.googleapis.com/tokeninfo`
+  with audience (`aud`) checked against `GOOGLE_CLIENT_ID` — signature is never trusted without verification
+- **Brute-force protection**: `@nestjs/throttler` (global 100 req/min per IP; 3–10 req/min on auth routes)
+  plus per-account lockout (5 failed attempts → 15 min exponential backoff)
+- **Refresh-token reuse detection**: a rotated-out token presented again revokes all sessions
+- **Role from DB**: JWT strategy re-reads role from the `users` table instead of trusting the token claim
+- **No privilege escalation**: `isAdmin` was removed from `RegisterDto`; registrations always get `USER` role
+- **Uniform register response** prevents account enumeration
+- **Password policy**: min 8 chars with uppercase, lowercase, and a number (register + reset)

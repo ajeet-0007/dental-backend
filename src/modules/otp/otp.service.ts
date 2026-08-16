@@ -98,9 +98,21 @@ export class OtpService {
       throw new BadRequestException('Invalid OTP');
     }
 
-    otpRecord.isUsed = true;
-    await this.otpRepository.save(otpRecord);
+    if (type !== 'reset') {
+      otpRecord.isUsed = true;
+      await this.otpRepository.save(otpRecord);
+    }
 
     return true;
+  }
+
+  async markOtpUsed(
+    email: string,
+    type: 'login' | 'register' | 'reset',
+  ) {
+    await this.otpRepository.update(
+      { email, type: type as OtpType, isUsed: false },
+      { isUsed: true },
+    );
   }
 }

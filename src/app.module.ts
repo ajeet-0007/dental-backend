@@ -1,8 +1,10 @@
 import { Module } from "@nestjs/common";
+import { APP_GUARD } from "@nestjs/core";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { MulterModule } from "@nestjs/platform-express";
 import { ScheduleModule } from "@nestjs/schedule";
+import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import { GoogleRecaptchaModule } from "@nestlab/google-recaptcha";
 import { AuthModule } from "./modules/auth/auth.module";
 import { UsersModule } from "./modules/users/users.module";
@@ -43,6 +45,15 @@ import { SupportModule } from "./modules/support/support.module";
     ConfigModule.forRoot({
       isGlobal: true,
       ignoreEnvFile: process.env.VERCEL === '1',
+    }),
+    ThrottlerModule.forRoot({
+      throttlers: [
+        {
+          name: "default",
+          ttl: 60000,
+          limit: 100,
+        },
+      ],
     }),
     GoogleRecaptchaModule.forRootAsync({
       imports: [ConfigModule],
@@ -111,6 +122,12 @@ import { SupportModule } from "./modules/support/support.module";
     BrevoModule,
     GalleryModule,
     SupportModule,
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
   ],
 })
 export class AppModule {}

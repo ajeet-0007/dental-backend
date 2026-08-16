@@ -4,11 +4,13 @@ import {
   IsString,
   MinLength,
   IsOptional,
-  IsBoolean,
   IsIn,
   Length,
+  Matches,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+
+export const PASSWORD_PATTERN = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
 
 export class RegisterDto {
   @ApiProperty()
@@ -22,7 +24,11 @@ export class RegisterDto {
 
   @ApiProperty()
   @IsString()
-  @MinLength(6)
+  @MinLength(8)
+  @Matches(PASSWORD_PATTERN, {
+    message:
+      'Password must be at least 8 characters and include uppercase, lowercase and a number',
+  })
   password: string;
 
   @ApiProperty()
@@ -34,11 +40,6 @@ export class RegisterDto {
   @IsString()
   @IsNotEmpty()
   lastName: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsBoolean()
-  isAdmin?: boolean;
 }
 
 export class LoginDto {
@@ -53,10 +54,10 @@ export class LoginDto {
 }
 
 export class RefreshTokenDto {
-  @ApiProperty()
+  @ApiProperty({ required: false })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  refreshToken: string;
+  refreshToken?: string;
 }
 
 export class SendOtpDto {
@@ -96,6 +97,10 @@ export class ResetPasswordDto {
 
   @ApiProperty()
   @IsString()
-  @MinLength(6)
+  @MinLength(8)
+  @Matches(PASSWORD_PATTERN, {
+    message:
+      'Password must be at least 8 characters and include uppercase, lowercase and a number',
+  })
   newPassword: string;
 }

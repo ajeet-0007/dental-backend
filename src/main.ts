@@ -1,7 +1,9 @@
 import { NestFactory } from "@nestjs/core";
 import { ValidationPipe } from "@nestjs/common";
 import { SwaggerModule, DocumentBuilder } from "@nestjs/swagger";
+import { NestExpressApplication } from "@nestjs/platform-express";
 import * as express from "express";
+import * as cookieParser from "cookie-parser";
 import { Request, Response, NextFunction } from "express";
 import * as uuid from "uuid";
 import { AppModule } from "./app.module";
@@ -10,14 +12,17 @@ import { LogService } from "./modules/logger/logger.service";
 
 async function bootstrap() {
 
-  const app = await NestFactory.create(AppModule, {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     rawBody: true,
     bodyParser: false,
   });
 
+  app.set('trust proxy', 1);
+
   app.use("/api/payments/webhook", express.raw({ type: "application/json" }));
 
   app.use(express.json());
+  app.use(cookieParser());
 
   app.use((req: Request, res: Response, next: NextFunction) => {
     (req as any).correlationId = (req.headers['x-correlation-id'] as string) || uuid.v4();
