@@ -13,7 +13,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto, UpdateOrderStatusDto, CancelOrderDto } from './dto/order.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { VerifiedOnlyGuard } from '../../common/guards/verified-only.guard';
+// import { VerifiedOnlyGuard } from '../../common/guards/verified-only.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../../database/entities';
@@ -24,7 +24,7 @@ export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
   @Post()
-  @UseGuards(JwtAuthGuard, VerifiedOnlyGuard)
+  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create order from cart' })
   async create(
