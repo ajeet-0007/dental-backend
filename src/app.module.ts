@@ -39,6 +39,7 @@ import { EntityBulkUploadModule } from "./modules/entity-bulk-upload/entity-bulk
 import { ProfessionalVerificationModule } from "./modules/professional-verification/professional-verification.module";
 import { LoggerModule } from "./modules/logger/logger.module";
 import { SupportModule } from "./modules/support/support.module";
+import { AdviceRequestsModule } from "./modules/advice-requests/advice-requests.module";
 
 @Module({
   imports: [
@@ -122,6 +123,7 @@ import { SupportModule } from "./modules/support/support.module";
     BrevoModule,
     GalleryModule,
     SupportModule,
+    AdviceRequestsModule,
   ],
   providers: [
     {

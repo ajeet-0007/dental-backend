@@ -113,6 +113,59 @@ export class BrevoService {
     }
   }
 
+  async sendAdviceRequestEmail(data: {
+    id: number;
+    doctorName: string;
+    clinicName?: string;
+    email: string;
+    phone?: string;
+    equipmentName: string;
+    equipmentCategory: string;
+    equipmentBrand?: string;
+    problemDescription: string;
+    userId?: string;
+  }): Promise<boolean> {
+    try {
+      const senderEmail =
+        this.configService.get<string>('BREVO_SENDER_EMAIL') ||
+        'support@dentzoo.com';
+      const senderName =
+        this.configService.get<string>('BREVO_SENDER_NAME') || 'Dentzoo';
+
+      const subject = `Free Equipment Advice Request #${data.id}: ${data.equipmentName} - from Dr. ${data.doctorName}`;
+
+      const htmlContent = `
+        <h2>New Free Equipment Advice Request</h2>
+        <table style="border-collapse:collapse;width:100%;max-width:600px;">
+          <tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Request ID</td><td style="padding:8px;border:1px solid #ddd;">#${data.id}</td></tr>
+          <tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Doctor</td><td style="padding:8px;border:1px solid #ddd;">${data.doctorName}</td></tr>
+          ${data.clinicName ? `<tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Clinic</td><td style="padding:8px;border:1px solid #ddd;">${data.clinicName}</td></tr>` : ''}
+          <tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Email</td><td style="padding:8px;border:1px solid #ddd;">${data.email}</td></tr>
+          ${data.phone ? `<tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Phone</td><td style="padding:8px;border:1px solid #ddd;">${data.phone}</td></tr>` : ''}
+          <tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">Equipment</td><td style="padding:8px;border:1px solid #ddd;">${data.equipmentName} (${data.equipmentCategory})${data.equipmentBrand ? ' - ' + data.equipmentBrand : ''}</td></tr>
+          ${data.userId ? `<tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;">User ID</td><td style="padding:8px;border:1px solid #ddd;">${data.userId}</td></tr>` : ''}
+        </table>
+        <h3>Problem Description:</h3>
+        <p style="padding:12px;background:#f5f5f5;border-radius:4px;">${data.problemDescription.replace(/\n/g, '<br>')}</p>
+        <hr>
+        <p style="color:#888;font-size:12px;">Sent from the Dentzoo Free Equipment Advice form. Reply to the doctor directly at ${data.email}.</p>
+      `;
+
+      await this.client.transactionalEmails.sendTransacEmail({
+        subject,
+        sender: { email: senderEmail, name: senderName },
+        to: [{ email: 'support@dentzoo.com' }],
+        htmlContent,
+      });
+
+      this.logger.log(`Advice request email sent to support@dentzoo.com (id ${data.id})`);
+      return true;
+    } catch (error) {
+      this.logger.error('Failed to send advice request email:', error);
+      return false;
+    }
+  }
+
   private getOtpHtml(otp: string, type: string): string {
     const heading =
       type === 'reset' ? 'Password Reset Request' : 'Verification Code';
