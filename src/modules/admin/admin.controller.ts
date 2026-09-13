@@ -7,8 +7,10 @@ import {
   Body,
   Param,
   Query,
+  Res,
   UseGuards,
 } from "@nestjs/common";
+import { Response } from "express";
 import { AdminService } from "./admin.service";
 import { AdminProductQueryDto } from "./dto/admin-product-query.dto";
 import { BulkDeleteProductsDto } from "./dto/bulk-delete-products.dto";
@@ -62,6 +64,53 @@ export class AdminController {
   @Get("products")
   async getProducts(@Query() query: AdminProductQueryDto) {
     return this.adminService.getAllProducts(query);
+  }
+
+  @Get("products/export")
+  async exportProducts(
+    @Query() query: AdminProductQueryDto,
+    @Res() res: Response,
+  ) {
+    const csv = await this.adminService.exportProductsCsv(query);
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="products-export-${new Date().toISOString().split("T")[0]}.csv"`,
+    );
+    res.send(csv);
+  }
+
+  @Get("brands/export")
+  async exportBrands(@Res() res: Response) {
+    const csv = await this.adminService.exportBrandsCsv();
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="brands-export-${new Date().toISOString().split("T")[0]}.csv"`,
+    );
+    res.send(csv);
+  }
+
+  @Get("categories/export")
+  async exportCategories(@Res() res: Response) {
+    const csv = await this.adminService.exportCategoriesCsv();
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="categories-export-${new Date().toISOString().split("T")[0]}.csv"`,
+    );
+    res.send(csv);
+  }
+
+  @Get("departments/export")
+  async exportDepartments(@Res() res: Response) {
+    const csv = await this.adminService.exportDepartmentsCsv();
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="departments-export-${new Date().toISOString().split("T")[0]}.csv"`,
+    );
+    res.send(csv);
   }
 
   @Post("products")

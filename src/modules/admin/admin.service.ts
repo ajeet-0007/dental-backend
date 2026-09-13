@@ -218,9 +218,221 @@ export class AdminService {
   }
 
   async getAllProducts(query: AdminProductQueryDto) {
+    const { page = 1, limit = 20, duplicate } = query;
+
+    const qb = this.buildProductsQuery(query);
+    qb.skip((page - 1) * limit).take(limit);
+
+    const [products, total] = await qb.getManyAndCount();
+
+    const enrichedProducts = products.map((product: any) =>
+      this.enrichProduct(product, duplicate),
+    );
+
+    return {
+      products: enrichedProducts,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  async exportProductsCsv(query: AdminProductQueryDto) {
+    const qb = this.buildProductsQuery(query);
+    const products = await qb.getMany();
+
+    const enrichedProducts = products.map((product: any) =>
+      this.enrichProduct(product, query.duplicate),
+    );
+
+    const headers =
+      "ID,Name,Slug,SKU,Selling Price,MRP,Brand,Brand ID,Category,Department(s),Stock,Has Variants,Variant Count,Unit,Min Order Quantity,Active,Featured,Returnable,Return Days,Weight,Weight Unit,Expires At,Created At,Updated At\n";
+
+    const rows = enrichedProducts.map((product: any) => {
+      const departments = (product.departments || [])
+        .map((d: any) => d.name)
+        .join("; ");
+      const dateStr = (date?: Date | string) =>
+        date ? new Date(date).toISOString() : "";
+
+      return [
+        product.id,
+        this.csvEscape(product.name),
+        product.slug,
+        this.csvEscape(product.sku || ""),
+        product.sellingPrice ?? "",
+        product.mrp ?? "",
+        this.csvEscape(product.brand || ""),
+        product.brandId ?? "",
+        this.csvEscape(product.category?.name || ""),
+        this.csvEscape(departments),
+        product.stock ?? "",
+        product.hasVariants ? "Yes" : "No",
+        product.variantCount ?? "",
+        this.csvEscape(product.unit || ""),
+        product.minOrderQuantity ?? "",
+        product.isActive ? "Yes" : "No",
+        product.isFeatured ? "Yes" : "No",
+        product.isReturnable ? "Yes" : "No",
+        product.returnDays ?? "",
+        product.weight ?? "",
+        product.weightUnit || "",
+        dateStr(product.expiresAt),
+        dateStr(product.createdAt),
+        dateStr(product.updatedAt),
+      ].join(",");
+    });
+
+    return headers + rows.join("\n");
+  }
+
+  async exportBrandsCsv() {
+    const brands = await this.brandRepository
+      .createQueryBuilder("brand")
+      .orderBy("brand.sortOrder", "ASC")
+      .getMany();
+
+    const countRows: { brandId: string | number; count: string | number }[] =
+      await this.brandRepository.manager.query(
+        `SELECT brandId, COUNT(*) as count FROM products WHERE brandId IS NOT NULL GROUP BY brandId`,
+      );
+
+    const countMap = new Map<number, number>();
+    countRows.forEach((row) => {
+      countMap.set(Number(row.brandId), parseInt(String(row.count), 10) || 0);
+    });
+
+    const headers =
+      "ID,Name,Slug,Description,Logo,Sort Order,Active,Product Count,Created At,Updated At\n";
+
+    const rows = brands.map((brand) => {
+      const dateStr = (date?: Date) =>
+        date ? new Date(date).toISOString() : "";
+
+      return [
+        brand.id,
+        this.csvEscape(brand.name),
+        brand.slug,
+        this.csvEscape(brand.description || ""),
+        this.csvEscape(brand.logo || ""),
+        brand.sortOrder,
+        brand.isActive ? "Yes" : "No",
+        countMap.get(brand.id) || 0,
+        dateStr(brand.createdAt),
+        dateStr(brand.updatedAt),
+      ].join(",");
+    });
+
+    return headers + rows.join("\n");
+  }
+
+  async exportCategoriesCsv() {
+    const categories = await this.categoryRepository.find({
+      order: { sortOrder: "ASC", name: "ASC" },
+      relations: ["parent"],
+    });
+
+    const headers =
+      "ID,Name,Slug,Description,Image,Parent,Sort Order,Active,Created At,Updated At\n";
+
+    const rows = categories.map((category: any) => {
+      const dateStr = (date?: Date) =>
+        date ? new Date(date).toISOString() : "";
+
+      return [
+        category.id,
+        this.csvEscape(category.name),
+        category.slug,
+        this.csvEscape(category.description || ""),
+        this.csvEscape(category.image || ""),
+        this.csvEscape(category.parent?.name || ""),
+        category.sortOrder,
+        category.isActive ? "Yes" : "No",
+        dateStr(category.createdAt),
+        dateStr(category.updatedAt),
+      ].join(",");
+    });
+
+    return headers + rows.join("\n");
+  }
+
+  async exportDepartmentsCsv() {
+    const departments = await this.departmentRepository
+      .createQueryBuilder("department")
+      .orderBy("department.sortOrder", "ASC")
+      .getMany();
+
+    const categoryCountMap = new Map<number, number>();
+    const productCountMap = new Map<number, number>();
+
+    if (departments.length > 0) {
+      const departmentIds = departments.map((department) => department.id);
+
+      const categoryCountRows: { departmentId: number; count: string }[] =
+        await this.departmentRepository.manager
+          .createQueryBuilder()
+          .select("categoryDepartment.departmentId", "departmentId")
+          .addSelect("COUNT(*)", "count")
+          .from("category_departments", "categoryDepartment")
+          .where("categoryDepartment.departmentId IN (:...departmentIds)", {
+            departmentIds,
+          })
+          .groupBy("categoryDepartment.departmentId")
+          .getRawMany();
+
+      const productCountRows: { departmentId: number; count: string }[] =
+        await this.departmentRepository.manager
+          .createQueryBuilder()
+          .select("productDepartment.departmentId", "departmentId")
+          .addSelect("COUNT(DISTINCT productDepartment.productId)", "count")
+          .from("product_departments", "productDepartment")
+          .where("productDepartment.departmentId IN (:...departmentIds)", {
+            departmentIds,
+          })
+          .groupBy("productDepartment.departmentId")
+          .getRawMany();
+
+      for (const row of categoryCountRows) {
+        categoryCountMap.set(
+          Number(row.departmentId),
+          parseInt(String(row.count), 10) || 0,
+        );
+      }
+      for (const row of productCountRows) {
+        productCountMap.set(
+          Number(row.departmentId),
+          parseInt(String(row.count), 10) || 0,
+        );
+      }
+    }
+
+    const headers =
+      "ID,Name,Slug,Description,Image,Sort Order,Active,Category Count,Product Count,Created At,Updated At\n";
+
+    const rows = departments.map((department) => {
+      const dateStr = (date?: Date) =>
+        date ? new Date(date).toISOString() : "";
+
+      return [
+        department.id,
+        this.csvEscape(department.name),
+        department.slug,
+        this.csvEscape(department.description || ""),
+        this.csvEscape(department.image || ""),
+        department.sortOrder,
+        department.isActive ? "Yes" : "No",
+        categoryCountMap.get(department.id) || 0,
+        productCountMap.get(department.id) || 0,
+        dateStr(department.createdAt),
+        dateStr(department.updatedAt),
+      ].join(",");
+    });
+
+    return headers + rows.join("\n");
+  }
+
+  private buildProductsQuery(query: AdminProductQueryDto) {
     const {
-      page = 1,
-      limit = 20,
       search,
       categoryId,
       brandId,
@@ -337,62 +549,61 @@ export class AdminService {
       );
     }
 
-    qb.skip((page - 1) * limit).take(limit);
+    return qb;
+  }
 
-    const [products, total] = await qb.getManyAndCount();
+  private enrichProduct(product: any, duplicate?: string) {
+    const variants = product.variants || [];
+    const variantCount = variants.length;
 
-    const enrichedProducts = products.map((product: any) => {
-      const variants = product.variants || [];
-      const variantCount = variants.length;
+    let minVariantPrice = 0;
+    let maxVariantPrice = 0;
+    let variantPriceRange = "";
 
-      let minVariantPrice = 0;
-      let maxVariantPrice = 0;
-      let variantPriceRange = "";
+    if (variantCount > 0) {
+      const prices = variants
+        .map((v: any) => v.sellingPrice)
+        .filter((p: number) => p > 0);
 
-      if (variantCount > 0) {
-        const prices = variants
-          .map((v: any) => v.sellingPrice)
-          .filter((p: number) => p > 0);
+      if (prices.length > 0) {
+        minVariantPrice = Math.min(...prices);
+        maxVariantPrice = Math.max(...prices);
 
-        if (prices.length > 0) {
-          minVariantPrice = Math.min(...prices);
-          maxVariantPrice = Math.max(...prices);
-
-          if (minVariantPrice === maxVariantPrice) {
-            variantPriceRange = `₹${minVariantPrice}`;
-          } else {
-            variantPriceRange = `₹${minVariantPrice} - ₹${maxVariantPrice}`;
-          }
+        if (minVariantPrice === maxVariantPrice) {
+          variantPriceRange = `₹${minVariantPrice}`;
+        } else {
+          variantPriceRange = `₹${minVariantPrice} - ₹${maxVariantPrice}`;
         }
       }
+    }
 
-      const baseInventory = (product.inventories || []).find(
-        (inv: any) => !inv.productVariantId,
-      );
+    const baseInventory = (product.inventories || []).find(
+      (inv: any) => !inv.productVariantId,
+    );
 
-      const enriched: any = {
-        ...product,
-        variantCount,
-        minVariantPrice,
-        maxVariantPrice,
-        variantPriceRange,
-        stock: baseInventory?.quantity ?? 0,
-        inventories: undefined,
-      };
-
-      if (duplicate) {
-        enriched.duplicateGroupKey = this.getDuplicateGroupKey(product, duplicate);
-      }
-
-      return enriched;
-    });
-
-    return {
-      products: enrichedProducts,
-      total,
-      page,
-      totalPages: Math.ceil(total / limit),
+    const enriched: any = {
+      ...product,
+      variantCount,
+      minVariantPrice,
+      maxVariantPrice,
+      variantPriceRange,
+      stock: baseInventory?.quantity ?? 0,
+      inventories: undefined,
     };
+
+    if (duplicate) {
+      enriched.duplicateGroupKey = this.getDuplicateGroupKey(product, duplicate);
+    }
+
+    return enriched;
+  }
+
+  private csvEscape(value: string | number | null | undefined): string {
+    const s = value == null ? "" : String(value);
+    if (/[",\n\r]/.test(s)) {
+      return `"${s.replace(/"/g, '""')}"`;
+    }
+    return s;
   }
 
   private getMissingPredicate(field: string): string | null {
