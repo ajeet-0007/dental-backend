@@ -1,6 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { Cron, CronExpression } from "@nestjs/schedule";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { News } from "../../database/entities/news.entity";
@@ -204,11 +203,6 @@ export class NewsCronService {
     } else {
       this.logger.warn("TAVILY_API_KEY not configured - news fetch disabled");
     }
-  }
-
-  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
-  async fetchDentalNews(): Promise<void> {
-    await this.doFetchNews();
   }
 
   private async searchTavily(): Promise<TavilyResponse> {

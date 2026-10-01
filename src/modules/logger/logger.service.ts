@@ -81,8 +81,6 @@ export class LogService {
       this.logger.warn(`Log circuit breaker state changed to: ${state}`);
     });
 
-    this.flushTimer = setInterval(() => this.flushQueue(), this.flushInterval);
-
     if (typeof process !== 'undefined' && process.on) {
       process.on('beforeExit', () => this.flushQueueSync());
       process.on('SIGTERM', () => this.flushQueueSync());
@@ -101,15 +99,38 @@ export class LogService {
     };
   }
 
+  /**
+   * The flush timer is started on demand rather than in the constructor, and is
+   * unref'd so it never keeps the event loop alive. A permanently running timer
+   * stops a serverless instance from ever being frozen and returned, which keeps
+   * this instance's database pool pinned open for the life of the process.
+   */
+  private ensureFlushTimer(): void {
+    if (this.flushTimer) return;
+    this.flushTimer = setInterval(() => this.flushQueue(), this.flushInterval);
+    this.flushTimer.unref?.();
+  }
+
+  private stopFlushTimer(): void {
+    if (!this.flushTimer) return;
+    clearInterval(this.flushTimer);
+    this.flushTimer = null;
+  }
+
   private enqueueWrite(level: LogLevel, message: string, logData: Partial<Log>): void {
     this.writeQueue.push({ level, message, log: logData });
     if (this.writeQueue.length >= this.maxBatchSize) {
-      this.flushQueue();
+      void this.flushQueue();
+      return;
     }
+    this.ensureFlushTimer();
   }
 
   private async flushQueue(): Promise<void> {
-    if (this.writeQueue.length === 0) return;
+    if (this.writeQueue.length === 0) {
+      this.stopFlushTimer();
+      return;
+    }
 
     const batch = this.writeQueue.splice(0, this.maxBatchSize);
     try {
@@ -131,10 +152,7 @@ export class LogService {
   }
 
   private flushQueueSync(): void {
-    if (this.flushTimer) {
-      clearInterval(this.flushTimer);
-      this.flushTimer = null;
-    }
+    this.stopFlushTimer();
     if (this.writeQueue.length === 0) return;
     const batch = this.writeQueue.splice(0);
     this.batchWrite(batch).catch((err) => {

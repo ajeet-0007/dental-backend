@@ -23,6 +23,18 @@ NestJS 10 + TypeORM (MySQL) backend for the Dentalkart/Dentzoo dental-supplies s
 - Entities live in `src/database/entities/`, auto-globbed by `app.module.ts` (`*.entity{.ts,.js}`) but **explicitly listed** in `src/config/typeorm.config.ts`. Adding an entity requires updating that DataSource list or the migration CLI won't see it.
 - `NODE_ENV=development` enables SQL logging.
 
+## Connection budget (serverless)
+
+The deployment is serverless, so **every running instance opens its own pool** against a shared MySQL server with a hard `max_connections` cap (76 on the current Aiven plan). Two rules keep the total under that ceiling:
+
+- **No timers.** `ScheduleModule.forRoot()` is deliberately absent and no `@Cron`/`@Interval` exists in `src/`. A live timer handle prevents a serverless instance from ever being frozen and returned, so its pool stays pinned open for the life of the process — this exhausted the server (51 half-idle source hosts, `Max_used_connections` 78) and took the site down. `LogService`'s batch flush is `unref()`d and started lazily for the same reason. Do not reintroduce `setInterval`/`setTimeout` in a long-lived constructor.
+- **Small pools.** `app.module.ts` sets `pool: { max: 3, min: 0, idleTimeoutMillis: 30000, evictionRunIntervalMillis: 0 }`. Override `max` with the `DB_POOL_MAX` env var. Keep `min` at 0 so idle instances release their connections.
+- To check headroom: `SELECT COUNT(*) FROM information_schema.processlist WHERE user='<db user>'` should stay in the single digits, not climb toward 76.
+
+## Scheduled jobs
+
+News fetching is driven externally, not internally. `NewsCronService.doFetchNews()` is reachable only through `POST /api/news/fetch` (admin JWT, `Roles(UserRole.ADMIN)`); an external scheduler calls it daily. If you add another recurring job, follow the same shape — expose an authenticated admin endpoint and schedule it off-platform, never via `@Cron`.
+
 ## Seeds & one-off scripts
 
 - Real seeds: package.json `seed:*` scripts run `src/database/seed-*.ts` via ts-node, reading `.env` (MySQL + Supabase + NVIDIA embeddings).

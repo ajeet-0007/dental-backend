@@ -29,6 +29,7 @@ import { Log } from "../database/entities/log.entity";
 import { GalleryAlbum } from "../database/entities/gallery-album.entity";
 import { GalleryImage } from "../database/entities/gallery-image.entity";
 import { AdviceRequest } from "../database/entities/advice-request.entity";
+import { News } from "../database/entities/news.entity";
 
 config();
 
@@ -69,6 +70,7 @@ export const AppDataSource = new DataSource({
     GalleryAlbum,
     GalleryImage,
     AdviceRequest,
+    News,
   ],
   migrations: [__dirname + "/../database/migrations/*{.ts,.js}"],
   synchronize: false,

@@ -3,7 +3,6 @@ import { APP_GUARD } from "@nestjs/core";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { MulterModule } from "@nestjs/platform-express";
-import { ScheduleModule } from "@nestjs/schedule";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import { GoogleRecaptchaModule } from "@nestlab/google-recaptcha";
 import { AuthModule } from "./modules/auth/auth.module";
@@ -70,7 +69,6 @@ import { AdviceRequestsModule } from "./modules/advice-requests/advice-requests.
         fileSize: 5 * 1024 * 1024,
       },
     }),
-    ScheduleModule.forRoot(),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
@@ -84,9 +82,18 @@ import { AdviceRequestsModule } from "./modules/advice-requests/advice-requests.
         synchronize: false,
         logging: configService.get("NODE_ENV") === "development",
         connectTimeout: 30000,
-        acquireTimeout: 30000,
+        retryAttempts: 3,
+        retryDelay: 3000,
+        // Pool sizing must go in `extra`, which TypeORM forwards to mysql2 - the
+        // top-level `pool` option is Postgres-only and is silently ignored here.
+        // Each deployed instance opens its own pool and the server caps the total
+        // (76 on the current Aiven plan), so keep the per-instance footprint small
+        // and let idle connections expire rather than accumulate.
         extra: {
-          connectionLimit: 10,
+          connectionLimit: parseInt(configService.get("DB_POOL_MAX") || "3", 10),
+          queueLimit: 0,
+          waitForConnections: true,
+          idleTimeout: 30000,
         },
       }),
       inject: [ConfigService],
