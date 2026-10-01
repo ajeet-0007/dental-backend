@@ -1,5 +1,9 @@
-import { Controller, Get, Post } from "@nestjs/common";
-import { ApiOperation, ApiTags } from "@nestjs/swagger";
+import { Controller, Get, Post, UseGuards } from "@nestjs/common";
+import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
+import { UserRole } from "../../database/entities";
+import { Roles } from "../../common/decorators/roles.decorator";
+import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
+import { RolesGuard } from "../../common/guards/roles.guard";
 import { NewsCronService } from "./news-cron.service";
 
 @ApiTags("News")
@@ -18,13 +22,17 @@ export class NewsController {
         subtitle: item.subtitle,
         image: item.image,
         link: item.sourceUrl,
+        source: item.source,
         publishedAt: item.publishedAt,
       })),
     };
   }
 
   @Post("fetch")
-  @ApiOperation({ summary: "Manually trigger news fetch" })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Manually trigger news fetch (Admin only)" })
   async triggerFetch() {
     return this.newsCronService.triggerFetch();
   }

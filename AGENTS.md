@@ -5,7 +5,7 @@ NestJS 10 + TypeORM (MySQL) backend for the Dentalkart/Dentzoo dental-supplies s
 ## Commands
 
 - Dev: `npm run start:dev` (watch). Prod: `npm run build` then `npm run start:prod` (`node dist/main`).
-- Lint: `npm run lint` — ESLint runs with `--fix`, so it auto-modifies files.
+- Lint: `npm run lint` is **broken** — there is no ESLint config in the repo, so it exits with "couldn't find a configuration file". Don't treat that as your regression.
 - Format: `npm run format` (prettier over `src/**/*.ts`).
 - No test suite exists (`test/` is empty, no test script). Do not rely on `npm test`.
 - No typecheck script; use `npm run build` (nest build runs tsc) to typecheck.
