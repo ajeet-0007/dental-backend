@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { ConfigService } from '@nestjs/config';
 import {
   ShippingMethod,
   Shipment,
@@ -16,9 +17,17 @@ import { CalculateRateDto } from './dto/calculate-rate.dto';
 import { CreateShipmentDto } from './dto/create-shipment.dto';
 import { ShippingRocketService } from './shipping-rocket.service';
 import { slugify } from '../../common/utils/slugify';
+import {
+  ShippingPricingConfig,
+  DEFAULT_SHIPPING_PRICING,
+  parsePricingNumber,
+  resolveShippingCharge,
+} from '../../common/utils/shipping-pricing';
 
 @Injectable()
 export class ShippingService {
+  private readonly pricingConfig: ShippingPricingConfig;
+
   constructor(
     @InjectRepository(ShippingMethod)
     private shippingMethodRepository: Repository<ShippingMethod>,
@@ -27,7 +36,31 @@ export class ShippingService {
     @InjectRepository(Order)
     private orderRepository: Repository<Order>,
     private shippingRocketService: ShippingRocketService,
-  ) {}
+    private configService: ConfigService,
+  ) {
+    this.pricingConfig = {
+      flatCharge: parsePricingNumber(
+        this.configService.get<string>('SHIPPING_FLAT_CHARGE'),
+        DEFAULT_SHIPPING_PRICING.flatCharge,
+      ),
+      freeShippingThreshold: parsePricingNumber(
+        this.configService.get<string>('FREE_SHIPPING_THRESHOLD'),
+        DEFAULT_SHIPPING_PRICING.freeShippingThreshold,
+      ),
+    };
+  }
+
+  /**
+   * Customer-facing shipping pricing. Flat charge below the free-shipping
+   * threshold, free at or above it. Values are never taken from the client.
+   */
+  getPricingConfig(): ShippingPricingConfig {
+    return this.pricingConfig;
+  }
+
+  calculateChargeForSubtotal(subtotal: number): number {
+    return resolveShippingCharge(subtotal, this.pricingConfig);
+  }
 
   /**
    * Calculate shipping rates from ShippingRocket
@@ -110,6 +143,17 @@ export class ShippingService {
     });
 
     return this.shipmentRepository.save(shipment);
+  }
+
+  /**
+   * Persist the actual courier rate against a shipment. This is an internal
+   * cost only - it must never change what the customer was charged on the order.
+   */
+  async recordCourierCharges(shipmentId: string, rate: number): Promise<void> {
+    await this.shipmentRepository.update(shipmentId, {
+      shippingRate: rate,
+      courierCharges: rate,
+    });
   }
 
   /**

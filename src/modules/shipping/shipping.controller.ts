@@ -36,6 +36,13 @@ export class ShippingController {
 
   // ===== ShippingRocket Endpoints =====
 
+  @Get('config')
+  @ApiOperation({ summary: 'Get shipping pricing config (flat charge + free shipping threshold)' })
+  getShippingConfig() {
+    const { flatCharge, freeShippingThreshold } = this.shippingService.getPricingConfig();
+    return { flatCharge, freeShippingThreshold };
+  }
+
   @Post('rates')
   @ApiOperation({ summary: 'Calculate shipping rates from ShippingRocket' })
   async calculateRates(@Body() rateDto: CalculateRateDto) {

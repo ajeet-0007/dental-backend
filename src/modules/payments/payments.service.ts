@@ -73,7 +73,8 @@ export class PaymentsService {
     const frontendUrl =
       this.configService.get("FRONTEND_URL") || "http://localhost:5173";
 
-    // Validate prices against database
+    // Validate prices against database and rebuild the subtotal from verified prices
+    let verifiedSubtotal = 0;
     for (const item of createPaymentSessionDto.items) {
       let dbPrice: number | null = null;
 
@@ -100,10 +101,20 @@ export class PaymentsService {
           `Price mismatch for ${item.productName}: client sent ${item.unitPrice}, actual price is ${dbPrice}`,
         );
       }
+
+      verifiedSubtotal += dbPrice * item.quantity;
     }
 
+    if (Math.abs(verifiedSubtotal - createPaymentSessionDto.subtotal) > 0.01) {
+      throw new BadRequestException(
+        `Subtotal mismatch: client sent ${createPaymentSessionDto.subtotal}, actual subtotal is ${verifiedSubtotal}`,
+      );
+    }
+
+    const subtotal = verifiedSubtotal;
+    const shippingAmount = this.shippingService.calculateChargeForSubtotal(subtotal);
+
     // Build line items from the cart items passed in, with GST and shipping distributed proportionally
-    const { subtotal, shippingAmount } = createPaymentSessionDto;
     const lineItems = createPaymentSessionDto.items.map(item => {
       const lineTotal = item.unitPrice * item.quantity;
       const lineShare = subtotal > 0 ? lineTotal / subtotal : 0;
@@ -126,7 +137,12 @@ export class PaymentsService {
     // Save order data to PaymentIntent table (avoids Stripe metadata 500 char limit)
     const paymentIntent = this.paymentIntentRepository.create({
       userId,
-      orderData: JSON.stringify(createPaymentSessionDto),
+      orderData: JSON.stringify({
+        ...createPaymentSessionDto,
+        subtotal,
+        shippingAmount,
+        totalAmount: subtotal + shippingAmount,
+      }),
       used: false,
     });
     const savedIntent = await this.paymentIntentRepository.save(paymentIntent);
@@ -371,21 +387,24 @@ export class PaymentsService {
       }
     }
 
+    const subtotal = orderData.subtotal;
+    const shippingAmount = this.shippingService.calculateChargeForSubtotal(subtotal);
+
     const order = manager.create(Order, {
       orderNumber: generateOrderNumber(),
       userId,
       status: OrderStatus.CONFIRMED,
-      subtotal: orderData.subtotal,
+      subtotal,
       taxAmount: orderData.taxAmount,
-      shippingAmount: orderData.shippingAmount,
+      shippingAmount,
       discountAmount: 0,
-      totalAmount: orderData.totalAmount,
+      totalAmount: subtotal + shippingAmount,
       shippingAddress,
       customerNote: orderData.customerNote,
       couponCode: orderData.couponCode,
       selectedCourier: orderData.selectedCourier,
       selectedService: orderData.selectedService,
-      shippingRate: orderData.shippingRate,
+      shippingRate: shippingAmount,
     });
 
     const savedOrder = await manager.save(order);
@@ -398,7 +417,7 @@ export class PaymentsService {
 
     const payment = manager.create(Payment, {
       orderId: savedOrder.id,
-      amount: orderData.totalAmount,
+      amount: subtotal + shippingAmount,
       status: PaymentStatus.COMPLETED,
       method: PaymentMethod.CARD,
       transactionId: (session.payment_intent as string) || '',
@@ -504,7 +523,7 @@ export class PaymentsService {
 
     let selectedCourier = 'Standard';
     let selectedService = 'Standard';
-    let shippingRate = 50;
+    let courierRate: number | null = null;
 
     if (ratesResponse && ratesResponse.couriers && ratesResponse.couriers.length > 0) {
       const couriers = ratesResponse.couriers;
@@ -512,8 +531,7 @@ export class PaymentsService {
       const cheapest = couriers[0];
       selectedCourier = cheapest.name;
       selectedService = cheapest.serviceType;
-      shippingRate = cheapest.rate;
-    } else {
+      courierRate = cheapest.rate;
     }
 
     // Create shipment DTO
@@ -536,12 +554,14 @@ export class PaymentsService {
         createShipmentDto,
       );
 
+      if (courierRate !== null) {
+        await this.shippingService.recordCourierCharges(shipment.id, courierRate);
+      }
+
 
       // Update order with shipment info
       order.selectedCourier = selectedCourier;
       order.selectedService = selectedService;
-      order.shippingRate = shippingRate;
-      order.shippingAmount = shippingRate;
       order.shipmentId = shipment.id;
       order.trackingNumber = shipment.trackingNumber;
       order.shippingStatus = shipment.status;
@@ -549,11 +569,9 @@ export class PaymentsService {
       await this.orderRepository.save(order);
 
     } catch (error) {
-      // Update order with rate but create shipment record failed - will be created manually
+      // Shipment record failed - courier selection is still recorded on the order
       order.selectedCourier = selectedCourier;
       order.selectedService = selectedService;
-      order.shippingRate = shippingRate;
-      order.shippingAmount = shippingRate;
       await this.orderRepository.save(order);
     }
   }

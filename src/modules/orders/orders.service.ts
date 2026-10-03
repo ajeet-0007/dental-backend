@@ -24,6 +24,12 @@ import {
 } from "../../database/entities";
 import { CreateOrderDto, UpdateOrderStatusDto } from "./dto/order.dto";
 import { generateOrderNumber } from "../../common/utils/slugify";
+import {
+  ShippingPricingConfig,
+  DEFAULT_SHIPPING_PRICING,
+  parsePricingNumber,
+  resolveShippingCharge,
+} from "../../common/utils/shipping-pricing";
 import { InventoryService } from "../inventory/inventory.service";
 import { ShippingRocketService } from "../shipping/shipping-rocket.service";
 import { ConfigService } from "@nestjs/config";
@@ -32,6 +38,7 @@ import { ConfigService } from "@nestjs/config";
 export class OrdersService {
   private readonly logger = new Logger(OrdersService.name);
   private warehousePincode: string;
+  private pricingConfig: ShippingPricingConfig;
 
   constructor(
     @InjectRepository(Order)
@@ -60,6 +67,20 @@ export class OrdersService {
     private dataSource: DataSource,
   ) {
     this.warehousePincode = this.configService.get<string>('WAREHOUSE_PINCODE') || '243001';
+    this.pricingConfig = {
+      flatCharge: parsePricingNumber(
+        this.configService.get<string>('SHIPPING_FLAT_CHARGE'),
+        DEFAULT_SHIPPING_PRICING.flatCharge,
+      ),
+      freeShippingThreshold: parsePricingNumber(
+        this.configService.get<string>('FREE_SHIPPING_THRESHOLD'),
+        DEFAULT_SHIPPING_PRICING.freeShippingThreshold,
+      ),
+    };
+  }
+
+  private calculateShippingCharge(subtotal: number): number {
+    return resolveShippingCharge(subtotal, this.pricingConfig);
   }
 
   async create(userId: string, createOrderDto: CreateOrderDto): Promise<Order> {
@@ -128,7 +149,7 @@ export class OrdersService {
       });
     }
 
-    const shippingAmount = createOrderDto.shippingRate || 0;
+    const shippingAmount = this.calculateShippingCharge(subtotal);
     const taxAmount = 0;
     const totalAmount = subtotal + shippingAmount;
     const isCOD = createOrderDto.paymentMethod === "cod";
@@ -152,7 +173,7 @@ export class OrdersService {
         couponCode: createOrderDto.couponCode,
         selectedCourier: createOrderDto.selectedCourier,
         selectedService: createOrderDto.selectedService,
-        shippingRate: createOrderDto.shippingRate,
+        shippingRate: shippingAmount,
       });
 
       const savedOrder = await queryRunner.manager.save(order);
@@ -309,13 +330,13 @@ export class OrdersService {
         length: length || 10,
         breadth: breadth || 10,
         height: height || 10,
+        shippingRate: cheapestCourier.rate,
+        courierCharges: cheapestCourier.rate,
         isCOD: true,
       });
 
       order.selectedCourier = cheapestCourier.name;
       order.selectedService = cheapestCourier.serviceType;
-      order.shippingRate = cheapestCourier.rate;
-      order.shippingAmount = cheapestCourier.rate;
       await this.orderRepository.save(order);
 
       return this.shipmentRepository.save(shipment);

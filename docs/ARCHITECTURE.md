@@ -306,5 +306,6 @@ Client                     Backend                         Stripe/ShipRocket
 | ShipRocket | `SHIPPINGROCKET_*` | Shipping module |
 | SMTP | `SMTP_*` | Email module |
 | Warehouse | `WAREHOUSE_*` | Shipping module |
+| Shipping pricing | `SHIPPING_FLAT_CHARGE`, `FREE_SHIPPING_THRESHOLD` | Shipping + Orders modules |
 | Returns | `RETURN_*` | Returns module |
 | AI/News | `TAVILY_API_KEY` | News module |

@@ -130,6 +130,7 @@ Admin                          ShippingService                   ShipRocket
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
+| GET | `/shipping/config` | Public | Customer shipping pricing (`flatCharge`, `freeShippingThreshold`) |
 | POST | `/shipping/rates` | Public | Calculate shipping rates |
 | POST | `/shipping/shipments` | JWT | Create shipment |
 | GET | `/shipping/shipments/track/:trackingNumber` | Public | Track by AWB |
@@ -190,6 +191,9 @@ Admin                          ShippingService                   ShipRocket
 
 | Method | Description |
 |---|---|
+| `getPricingConfig()` | Customer-facing flat charge + free shipping threshold (from env) |
+| `calculateChargeForSubtotal(subtotal)` | Flat charge below threshold, `0` at/above it |
+| `recordCourierCharges(shipmentId, rate)` | Store the real courier rate on a shipment (internal cost only) |
 | `calculateShippingRates(dto)` | Delegates to ShipRocket rate API |
 | `createShippingRocketShipment(dto)` | Fetch order, calc dims, get cheapest courier, create ShipRocket order, save Shipment entity |
 | `getShipmentTracking(trackingNumber)` | Track by AWB |

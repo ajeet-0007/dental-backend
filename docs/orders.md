@@ -162,7 +162,7 @@ Client                         OrdersService                       Database
 
 | DTO | Fields |
 |---|---|
-| `CreateOrderDto` | addressId?, shippingAddress? (JSON), phone?, paymentMethod?, couponCode?, customerNote?, selectedCourier?, selectedService?, shippingRate? |
+| `CreateOrderDto` | addressId?, shippingAddress? (JSON), phone?, paymentMethod?, couponCode?, customerNote?, selectedCourier?, selectedService?, shippingRate? (accepted but **ignored** — shipping is priced server-side) |
 | `UpdateOrderStatusDto` | status (required, only 'cancelled' allowed), adminNote? |
 | `CancelOrderDto` | reason? |
 
@@ -216,3 +216,5 @@ OrdersModule
 - **Tax**: Hardcoded 18% GST
 - **Address snapshot**: Shipping address is stored as JSON snapshot (not a FK) to preserve historical accuracy
 - **Order number format**: `DK-<timestamp-base36>-<random-base36>`
+- **Shipping pricing**: Server-side only. `subtotal < FREE_SHIPPING_THRESHOLD` (default 2499) is charged `SHIPPING_FLAT_CHARGE` (default 100); at or above the threshold shipping is free. Client-supplied `shippingRate` is ignored.
+- **Courier rate is never customer-facing**: The cheapest ShipRocket rate only picks the courier and is stored on the shipment (`shippingRate`/`courierCharges`) as an internal cost. It never mutates `Order.shippingAmount` or `Order.totalAmount`.
