@@ -78,14 +78,14 @@
 └───────────────┘ └──────────────┘ └──────────────────┘
 
 ┌───────────────┐ ┌──────────────┐ ┌──────────────────┐
-│    Tavily     │ │   Supabase   │ │  Google/FB/Apple  │
-│  (News API)   │ │  (pgvector)  │ │     (OAuth)      │
+│    Tavily     │ │    Brevo     │ │  Google/FB/Apple  │
+│  (News API)   │ │   (Email)    │ │     (OAuth)      │
 └───────────────┘ └──────────────┘ └──────────────────┘
 
-┌───────────────┐ ┌──────────────┐
-│  NVIDIA/LLM   │ │  Axios+Chr   │
-│  (AI Chat)    │ │  (DCI Scrape)│
-└───────────────┘ └──────────────┘
+┌───────────────┐
+│  Axios+Chr   │
+│  (DCI Scrape)│
+└───────────────┘
 ```
 
 ---
@@ -307,5 +307,4 @@ Client                     Backend                         Stripe/ShipRocket
 | SMTP | `SMTP_*` | Email module |
 | Warehouse | `WAREHOUSE_*` | Shipping module |
 | Returns | `RETURN_*` | Returns module |
-| AI/News | `TAVILY_API_KEY`, `NVIDIA_API_KEY` | News, AI Assistant |
-| Supabase | `SUPABASE_*` | AI Assistant (pgvector) |
+| AI/News | `TAVILY_API_KEY` | News module |

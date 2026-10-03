@@ -1,6 +1,6 @@
 # Dentalkart Backend - Documentation
 
-> NestJS-based e-commerce backend for dental supplies with Stripe payments, ShipRocket shipping, and AI-powered assistant.
+> NestJS-based e-commerce backend for dental supplies with Stripe payments and ShipRocket shipping.
 
 ## Quick Navigation
 
@@ -51,7 +51,6 @@
 | [imagekit.md](./imagekit.md) | ImageKit CDN authentication & upload |
 | [health.md](./health.md) | Health check & API info |
 | [news.md](./news.md) | Dental news via Tavily API (cron) |
-| [ai-assistant.md](./ai-assistant.md) | RAG chatbot with Supabase pgvector |
 | [professional-verification.md](./professional-verification.md) | DCI dentist verification via Axios + Cheerio |
 
 ### Shared Infrastructure
@@ -69,7 +68,6 @@
 - **Payments:** Stripe
 - **Shipping:** ShipRocket API v2
 - **Media:** ImageKit CDN
-- **AI:** NVIDIA API (Llama 3.3 70B), Supabase pgvector
 - **Email:** Nodemailer + Handlebars
 - **Auth:** Passport (JWT, Google, Facebook, Apple)
 - **Scraping:** Axios + Cheerio

@@ -17,7 +17,6 @@
     "seed:banners": "ts-node src/database/seed-banners.ts",
     "seed:departments": "ts-node src/database/seed-departments.ts",
     "seed:brands": "ts-node src/database/seed-brands-full.ts",
-    "seed:embed-products": "ts-node src/database/embed-products.ts",
     "fix:fffd": "ts-node src/database/fix-replacement-chars.ts"
   },
   "dependencies": {
@@ -35,7 +34,6 @@
     "@nestjs/throttler": "^6.5.0",
     "@nestjs/typeorm": "^10.0.1",
     "@nestlab/google-recaptcha": "^3.11.2",
-    "@supabase/supabase-js": "^2.104.1",
     "@tavily/core": "^0.7.2",
     "@types/passport": "^1.0.17",
     "@types/passport-apple": "^2.0.3",
