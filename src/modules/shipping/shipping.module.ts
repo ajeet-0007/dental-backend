@@ -1,5 +1,4 @@
 import { Module, forwardRef } from '@nestjs/common';
-import { EventEmitterModule } from '@nestjs/event-emitter';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ShippingService } from './shipping.service';
 import { ShippingController } from './shipping.controller';
@@ -10,13 +9,14 @@ import { ShippingTestController } from './shipping.test-controller';
 import { AdminShippingController } from './admin-shipping.controller';
 import { AdminShippingService } from './admin-shipping.service';
 import { ShippingMethod, Shipment, Order, ReturnShipment, Payment, ShipmentTrackingHistory } from '../../database/entities';
+import { OrderNotificationsModule } from '../order-notifications/order-notifications.module';
 import { EmailModule } from '../email/email.module';
 import { PaymentsModule } from '../payments/payments.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([ShippingMethod, Shipment, Order, ReturnShipment, Payment, ShipmentTrackingHistory]),
-    EventEmitterModule,
+    OrderNotificationsModule,
     forwardRef(() => EmailModule),
     forwardRef(() => PaymentsModule),
   ],

@@ -1,9 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { OnEvent } from '@nestjs/event-emitter';
 import { EmailService } from '../email/email.service';
 import {
-  ORDER_CANCELLED_EVENT,
-  ORDER_PLACED_EVENT,
   OrderCancelledPayload,
   OrderPlacedPayload,
 } from './order-notifications.types';
@@ -12,17 +9,21 @@ import {
  * Sends order lifecycle emails to the customer and to the configured admin
  * address(es).
  *
- * Both handlers are registered with `async: true`, so EventEmitter2 dispatches
- * them without awaiting and the order request path never waits on SMTP. Three
- * things keep a mail failure from affecting the order:
+ * These handlers are called directly and awaited rather than being dispatched
+ * through `@OnEvent`. With `async: true`, eventemitter2 hands the listener to
+ * `setImmediate` and `emit()` returns a boolean, so nothing waits for the send
+ * to finish. That is fine under a long-lived local process, but on Vercel the
+ * function is frozen as soon as the response is sent and the detached SMTP send
+ * dies mid-flight - which is why order-placed mail arrived locally but never in
+ * production. Cancellation mail still made it only because that request happens
+ * to run long enough (ShipRocket cancel + inventory release) for the send to
+ * complete first.
  *
- *   1. `async: true` - the emitter does not await the listener.
- *   2. `suppressErrors: true` - EventEmitter2 swallows rejections instead of
- *      letting them surface as an unhandled rejection.
- *   3. the try/catch in each handler - nothing is ever rethrown.
- *
- * `EmailService.sendEmail` additionally catches its own errors and resolves to
- * `false`, so a broken SMTP host degrades to a warning in the log.
+ * Failure isolation is unchanged: the order is already committed by the time
+ * these run, and every method swallows its own errors, so a mail failure can
+ * never roll back or fail an order. `EmailService.sendEmail` additionally
+ * catches its own errors and resolves to `false`, so a broken SMTP host
+ * degrades to a warning in the log rather than an exception.
  */
 @Injectable()
 export class OrderNotificationsListener {
@@ -30,8 +31,7 @@ export class OrderNotificationsListener {
 
   constructor(private readonly emailService: EmailService) {}
 
-  @OnEvent(ORDER_PLACED_EVENT, { async: true, suppressErrors: true })
-  async handleOrderPlaced(payload: OrderPlacedPayload): Promise<void> {
+  async notifyOrderPlaced(payload: OrderPlacedPayload): Promise<void> {
     try {
       const admins = this.emailService.getAdminRecipients();
 
@@ -51,8 +51,7 @@ export class OrderNotificationsListener {
     }
   }
 
-  @OnEvent(ORDER_CANCELLED_EVENT, { async: true, suppressErrors: true })
-  async handleOrderCancelled(payload: OrderCancelledPayload): Promise<void> {
+  async notifyOrderCancelled(payload: OrderCancelledPayload): Promise<void> {
     try {
       const admins = this.emailService.getAdminRecipients();
 

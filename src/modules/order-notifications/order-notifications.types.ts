@@ -1,6 +1,3 @@
-export const ORDER_PLACED_EVENT = 'order.placed';
-export const ORDER_CANCELLED_EVENT = 'order.cancelled';
-
 export interface OrderEmailItem {
   name: string;
   sku?: string;

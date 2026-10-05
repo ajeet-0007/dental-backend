@@ -2,11 +2,10 @@ import { Controller, Post, Body, Req, Logger, BadRequestException } from '@nestj
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { Request } from 'express';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Repository } from 'typeorm';
 import { Order, Shipment, ShipmentStatus, Payment, PaymentStatus, PaymentMethod, OrderStatus } from '../../database/entities';
-import { ORDER_CANCELLED_EVENT } from '../order-notifications/order-notifications.types';
 import { buildOrderEmailPayload } from '../order-notifications/order-notifications.mapper';
+import { OrderNotificationsListener } from '../order-notifications/order-notifications.listener';
 
 @ApiTags('Shipping - Webhooks')
 @Controller('shipping')
@@ -20,7 +19,7 @@ export class ShippingWebhookController {
     private shipmentRepository: Repository<Shipment>,
     @InjectRepository(Payment)
     private paymentRepository: Repository<Payment>,
-    private eventEmitter: EventEmitter2,
+    private orderNotifications: OrderNotificationsListener,
   ) {}
 
   @Post('webhook')
@@ -221,7 +220,7 @@ export class ShippingWebhookController {
         shipment.order.status === OrderStatus.CANCELLED &&
         previousOrderStatus !== OrderStatus.CANCELLED
       ) {
-        void this.emitOrderCancelled(shipment.order);
+        await this.notifyOrderCancelled(shipment.order);
       }
     }
 
@@ -229,13 +228,14 @@ export class ShippingWebhookController {
   }
 
   /**
-   * Emits the order-cancelled event for a cancellation that originated on the
-   * courier side. The shipment was loaded with only `order` and `order.user`,
-   * so the order is re-read with its line items before the event is built.
-   * Fire-and-forget, and errors are swallowed so a mail problem can never make a
-   * ShipRocket webhook fail.
+   * Sends the order-cancelled notifications for a cancellation that originated
+   * on the courier side. The shipment was loaded with only `order` and
+   * `order.user`, so the order is re-read with its line items before the
+   * notification is built. Awaited rather than detached so a serverless freeze
+   * cannot drop the send; errors are swallowed so a mail problem can never make
+   * a ShipRocket webhook fail.
    */
-  private async emitOrderCancelled(order: Order): Promise<void> {
+  private async notifyOrderCancelled(order: Order): Promise<void> {
     try {
       const fullOrder = await this.orderRepository.findOne({
         where: { id: order.id },
@@ -246,14 +246,14 @@ export class ShippingWebhookController {
         return;
       }
 
-      this.eventEmitter.emit(ORDER_CANCELLED_EVENT, {
+      await this.orderNotifications.notifyOrderCancelled({
         ...buildOrderEmailPayload(fullOrder),
         cancelledBy: 'admin',
         reason: 'Cancelled by the courier',
       });
     } catch (error) {
       this.logger.error(
-        `Failed to emit order-cancelled event for #${order?.orderNumber}:`,
+        `Failed to send order-cancelled email for #${order?.orderNumber}:`,
         error,
       );
     }

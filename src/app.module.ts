@@ -65,8 +65,10 @@ import { OrderNotificationsModule } from "./modules/order-notifications/order-no
       }),
       inject: [ConfigService],
     }),
-    // Registered before the feature modules so they can import the bare
-    // EventEmitterModule and inject EventEmitter2.
+    // Registered globally so any module can inject EventEmitter2. Note that
+    // order notifications deliberately do NOT use it - a detached emit() is
+    // dropped when a serverless instance freezes after the response, so those
+    // listeners are injected and awaited directly instead.
     EventEmitterModule.forRoot({ wildcard: false }),
     MulterModule.register({
       limits: {
