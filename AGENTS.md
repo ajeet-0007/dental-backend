@@ -40,6 +40,10 @@ News fetching is driven externally, not internally. `NewsCronService.doFetchNews
 - Real seeds: package.json `seed:*` scripts run `src/database/seed-*.ts` via ts-node, reading `.env` (MySQL + Supabase + NVIDIA embeddings).
 - Root-level `seed*.ts`, `create-admin.ts`, `fix-inventory.ts`, `migrate*.js`, and `1774891285373-*.ts` are stale one-off scripts with hardcoded Aiven DB credentials — never run or copy them.
 
+## Stale sibling checkout
+
+`~/backend` (`/Users/apple/backend`) is an old clone of the same repo (`ajeet-0007/dental-backend`) parked at commit `4e4d06f4` (Apr 2026). Never run the server from there: its `origin/main` ref has not been fetched since Apr 2026 so `git status` wrongly reports it up to date, and its entities still declare the columns dropped by `1717000000000-RemovePriceColumn` (`products.price`, `product_variants.price`, `order_items.price`). It shares this project's `.env`/Aiven database, so every product query fails with `Unknown column 'Product.price' in 'field list'`. Always start the app from this directory; check `lsof -a -p <pid> -d cwd` if a stack trace shows `~/backend/node_modules`.
+
 ## Conventions (from `main.ts` / `src/common`)
 
 - Global `ValidationPipe`: `whitelist` + `forbidNonWhitelisted` + transform — DTOs are strict; any unknown body field returns 400. Keep DTOs exact.

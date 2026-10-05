@@ -243,7 +243,7 @@ function getStatusBgColor(status: string): string {
   return colors[status] || 'bg-gray-50';
 }
 
-function isWithinReturnWindow(deliveryDate: Date, windowDays: number = 7): boolean {
+function isWithinReturnWindow(deliveryDate: Date, windowDays: number = 10): boolean {
   const now = new Date();
   const delivery = new Date(deliveryDate);
   const diffTime = now.getTime() - delivery.getTime();

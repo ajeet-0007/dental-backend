@@ -53,7 +53,7 @@ export class ReturnsService {
     private configService: ConfigService,
     private shippingRocketService: ShippingRocketService,
   ) {
-    this.returnWindowDays = this.configService.get<number>('RETURN_WINDOW_DAYS', 7);
+    this.returnWindowDays = this.configService.get<number>('RETURN_WINDOW_DAYS', 10);
     this.autoApproveThreshold = this.configService.get<number>('RETURN_AUTO_APPROVE_THRESHOLD', 500);
     this.shippingDeduction = this.configService.get<number>('RETURN_SHIPPING_DEDUCTION', 3);
   }
