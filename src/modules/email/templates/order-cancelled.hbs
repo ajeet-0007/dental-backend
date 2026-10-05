@@ -11,9 +11,9 @@
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:620px;background-color:#ffffff;border-radius:8px;overflow:hidden;border:1px solid #e4e7ea;">
 
           <tr>
-            <td style="background-color:#0f766e;padding:22px 24px;text-align:center;">
-              <h1 style="margin:0;font-size:20px;line-height:1.3;color:#ffffff;font-weight:600;">Order Confirmation</h1>
-              <p style="margin:6px 0 0;font-size:13px;color:#d1fae5;">Order #{{orderNumber}}</p>
+            <td style="background-color:#b91c1c;padding:22px 24px;text-align:center;">
+              <h1 style="margin:0;font-size:20px;line-height:1.3;color:#ffffff;font-weight:600;">Order Cancelled</h1>
+              <p style="margin:6px 0 0;font-size:13px;color:#fee2e2;">Order #{{orderNumber}}</p>
             </td>
           </tr>
 
@@ -21,17 +21,27 @@
             <td style="padding:24px;">
               <p style="margin:0 0 14px;font-size:15px;">Dear {{customerName}},</p>
               <p style="margin:0 0 20px;font-size:15px;line-height:1.6;">
-                Thank you for your order. We have received it and will process it shortly.
+                Your order <strong>#{{orderNumber}}</strong> has been cancelled{{#if cancelledByLabel}} by {{cancelledByLabel}}{{/if}}.
+                Any amount paid for this order will be refunded to your original payment method.
               </p>
+
+              {{#if reason}}
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#fef2f2;border:1px solid #fecaca;border-radius:6px;margin:0 0 20px;">
+                <tr><td style="padding:14px 16px;">
+                  <p style="margin:0;font-size:14px;line-height:1.6;color:#991b1b;"><strong>Reason:</strong> {{reason}}</p>
+                </td></tr>
+              </table>
+              {{/if}}
 
               {{#if showCustomer}}
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#fffbeb;border:1px solid #fde68a;border-radius:6px;margin:0 0 20px;">
                 <tr><td style="padding:14px 16px;">
-                  <p style="margin:0 0 8px;font-size:13px;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:.04em;">New order from customer</p>
+                  <p style="margin:0 0 8px;font-size:13px;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:.04em;">Cancelled order for customer</p>
                   <p style="margin:0;font-size:14px;line-height:1.7;color:#78350f;">
                     <strong>Email:</strong> {{customerEmail}}<br>
                     {{#if customerPhone}}<strong>Phone:</strong> {{customerPhone}}<br>{{/if}}
-                    <strong>Payment:</strong> {{paymentMethod}}
+                    <strong>Payment:</strong> {{paymentMethod}}<br>
+                    <strong>Cancelled by:</strong> {{cancelledByLabel}}
                   </p>
                 </td></tr>
               </table>
@@ -50,16 +60,12 @@
                   <td align="right" style="padding:10px 16px;font-size:14px;">{{orderDate}}</td>
                 </tr>
                 <tr>
-                  <td style="padding:10px 16px;font-size:14px;color:#6b7280;">Payment method</td>
-                  <td align="right" style="padding:10px 16px;font-size:14px;">{{paymentMethod}}</td>
-                </tr>
-                <tr>
-                  <td style="padding:10px 16px;font-size:14px;color:#6b7280;">Order status</td>
-                  <td align="right" style="padding:10px 16px;font-size:14px;text-transform:capitalize;">{{status}}</td>
+                  <td style="padding:10px 16px;font-size:14px;color:#6b7280;">Cancelled on</td>
+                  <td align="right" style="padding:10px 16px;font-size:14px;">{{cancelledDate}}</td>
                 </tr>
               </table>
 
-              <p style="margin:0 0 8px;font-size:13px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.04em;">Products</p>
+              <p style="margin:0 0 8px;font-size:13px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.04em;">Products in this order</p>
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border:1px solid #e4e7ea;border-radius:6px;margin:0 0 20px;">
                 <tr>
                   <td colspan="3" style="padding:10px 16px;background-color:#f9fafb;border-bottom:1px solid #e4e7ea;font-size:12px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.04em;">Item</td>
@@ -100,23 +106,16 @@
                 </tr>
                 {{/if}}
                 <tr>
-                  <td style="padding:12px 0 0;font-size:16px;font-weight:700;border-top:2px solid #0f766e;">Final price</td>
-                  <td align="right" style="padding:12px 0 0;font-size:18px;font-weight:700;border-top:2px solid #0f766e;white-space:nowrap;">&#8377;{{totalAmount}}</td>
+                  <td style="padding:12px 0 0;font-size:16px;font-weight:700;border-top:2px solid #b91c1c;">Final price</td>
+                  <td align="right" style="padding:12px 0 0;font-size:18px;font-weight:700;border-top:2px solid #b91c1c;white-space:nowrap;">&#8377;{{totalAmount}}</td>
                 </tr>
               </table>
 
-              <p style="margin:0 0 8px;font-size:15px;line-height:1.6;">What's next:</p>
-              <ul style="margin:0 0 20px;padding-left:20px;font-size:14px;line-height:1.8;color:#4b5563;">
-                <li>We prepare your order for dispatch.</li>
-                <li>You'll get a tracking email once it ships, usually within 24 hours.</li>
-                <li>Estimated delivery: 3-7 business days.</li>
-              </ul>
+              <p style="margin:0;font-size:14px;line-height:1.6;">If this was not expected, or you would like to place a new order, please contact our support team and we'll be happy to help.</p>
 
-              <p style="margin:0 0 20px;">
-                <a href="{{orderUrl}}" style="display:inline-block;padding:12px 24px;background-color:#0f766e;color:#ffffff;text-decoration:none;border-radius:6px;font-size:14px;font-weight:600;">View your order</a>
+              <p style="margin:20px 0 0;text-align:center;">
+                <a href="{{orderUrl}}" style="display:inline-block;padding:12px 24px;background-color:#b91c1c;color:#ffffff;text-decoration:none;border-radius:6px;font-size:14px;font-weight:600;">View your order</a>
               </p>
-
-              <p style="margin:0;font-size:14px;line-height:1.6;">Need help? Reply to this email or contact our support team.</p>
             </td>
           </tr>
 

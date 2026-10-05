@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
+import { EventEmitter2 } from "@nestjs/event-emitter";
 import { Repository, DataSource, In } from "typeorm";
 import { Order, OrderStatus } from "../../database/entities/order.entity";
 import { Payment } from "../../database/entities/payment.entity";
@@ -17,6 +18,10 @@ import { ShippingRocketService } from "../shipping/shipping-rocket.service";
 import { slugify } from "../../common/utils/slugify";
 import { AdminProductQueryDto } from "./dto/admin-product-query.dto";
 import { ImageKitService } from "../imagekit/imagekit.service";
+import {
+  ORDER_CANCELLED_EVENT,
+} from "../order-notifications/order-notifications.types";
+import { buildOrderEmailPayload } from "../order-notifications/order-notifications.mapper";
 
 @Injectable()
 export class AdminService {
@@ -46,6 +51,7 @@ export class AdminService {
     @InjectRepository(Shipment)
     private shipmentRepository: Repository<Shipment>,
     private shippingRocketService: ShippingRocketService,
+    private eventEmitter: EventEmitter2,
     private dataSource: DataSource,
     private imageKitService: ImageKitService,
   ) {}
@@ -1092,6 +1098,8 @@ export class AdminService {
       throw new NotFoundException('Order not found');
     }
 
+    const previousStatus = order.status;
+
     const shipment = order.shipments?.[0];
     if (!shipment) {
       throw new NotFoundException('No shipment found for this order');
@@ -1111,6 +1119,42 @@ export class AdminService {
     order.status = OrderStatus.CANCELLED;
     await this.orderRepository.save(order);
 
+    // Only notify on a genuine transition to CANCELLED. This endpoint has no
+    // status guard of its own, so re-running it against an already-cancelled
+    // order would otherwise send a second cancellation email.
+    if (previousStatus !== OrderStatus.CANCELLED) {
+      void this.emitOrderCancelled(orderId);
+    }
+
     return { success: true, message: 'Shipment cancelled successfully' };
+  }
+
+  /**
+   * Emits the order-cancelled event for an admin-initiated cancellation. The
+   * order is re-read with its items and customer because the callers of this
+   * path only load the shipment relation. Fire-and-forget: the listener is
+   * registered with `async: true`, and errors are swallowed.
+   */
+  private async emitOrderCancelled(orderId: string): Promise<void> {
+    try {
+      const order = await this.orderRepository.findOne({
+        where: { id: orderId },
+        relations: ['items', 'user', 'payments'],
+      });
+
+      if (!order) {
+        return;
+      }
+
+      this.eventEmitter.emit(ORDER_CANCELLED_EVENT, {
+        ...buildOrderEmailPayload(order),
+        cancelledBy: 'admin',
+      });
+    } catch (error) {
+      console.error(
+        `Failed to emit order-cancelled event for order ${orderId}:`,
+        error,
+      );
+    }
   }
 }

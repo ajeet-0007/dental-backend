@@ -83,7 +83,7 @@ export class OrdersController {
     @Param('id') id: string,
     @Body() cancelOrderDto: CancelOrderDto,
   ) {
-    return this.ordersService.cancelOrder(id, req.user.id);
+    return this.ordersService.cancelOrder(id, req.user.id, cancelOrderDto.reason);
   }
 
   @Get('admin/all')

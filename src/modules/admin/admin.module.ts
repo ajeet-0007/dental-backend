@@ -1,4 +1,5 @@
 import { Module, forwardRef } from "@nestjs/common";
+import { EventEmitterModule } from "@nestjs/event-emitter";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { AdminController } from "./admin.controller";
 import { AdminService } from "./admin.service";
@@ -31,6 +32,7 @@ import { ShippingModule } from "../shipping/shipping.module";
       Brand,
       Shipment,
     ]),
+    EventEmitterModule,
     forwardRef(() => ShippingModule),
   ],
   controllers: [AdminController],

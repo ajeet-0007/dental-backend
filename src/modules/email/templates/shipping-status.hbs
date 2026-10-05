@@ -51,17 +51,17 @@
       
       <p><a href="{{trackingUrl}}" class="button">View Full Tracking Details</a></p>
       
-      {{#if status 'out_for_delivery'}}
+      {{#if isOutForDelivery}}
         <p><strong>Your package is arriving today!</strong></p>
         <p>Please ensure someone is available to receive it. If you're not home, contact the courier or update delivery instructions.</p>
       {{/if}}
       
-      <p>If you have any questions or concerns, please <a href="https://dentalkart.com/support">contact our support team</a>.</p>
+      <p>If you have any questions or concerns, please <a href="{{siteUrl}}/help">contact our support team</a>.</p>
       
-      <p>Thank you,<br><strong>DentalKart Team</strong></p>
+      <p>Thank you,<br><strong>Dentzoo Team</strong></p>
     </div>
     <div class="footer">
-      <p>&copy; {{year}} DentalKart. All rights reserved.</p>
+      <p>&copy; {{year}} Dentzoo. All rights reserved.</p>
     </div>
   </div>
 </body>

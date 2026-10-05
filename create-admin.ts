@@ -19,7 +19,7 @@ async function createAdminUser() {
 
   const userRepo = dataSource.getRepository(User);
 
-  const email = "admin@dentalkart.com";
+  const email = "admin@dentzoo.com";
   const existing = await userRepo.findOne({ where: { email: email } });
 
   if (existing) {

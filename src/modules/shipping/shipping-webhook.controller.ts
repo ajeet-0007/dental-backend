@@ -2,8 +2,11 @@ import { Controller, Post, Body, Req, Logger, BadRequestException } from '@nestj
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { Request } from 'express';
 import { InjectRepository } from '@nestjs/typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Repository } from 'typeorm';
 import { Order, Shipment, ShipmentStatus, Payment, PaymentStatus, PaymentMethod, OrderStatus } from '../../database/entities';
+import { ORDER_CANCELLED_EVENT } from '../order-notifications/order-notifications.types';
+import { buildOrderEmailPayload } from '../order-notifications/order-notifications.mapper';
 
 @ApiTags('Shipping - Webhooks')
 @Controller('shipping')
@@ -17,6 +20,7 @@ export class ShippingWebhookController {
     private shipmentRepository: Repository<Shipment>,
     @InjectRepository(Payment)
     private paymentRepository: Repository<Payment>,
+    private eventEmitter: EventEmitter2,
   ) {}
 
   @Post('webhook')
@@ -182,6 +186,7 @@ export class ShippingWebhookController {
 
     // Update order status accordingly
     if (shipment.order) {
+      const previousOrderStatus = shipment.order.status;
       const orderStatusMap: Record<string, OrderStatus> = {
         [ShipmentStatus.CANCELLED.toString()]: OrderStatus.CANCELLED,
         [ShipmentStatus.DELIVERED.toString()]: OrderStatus.DELIVERED,
@@ -207,8 +212,50 @@ export class ShippingWebhookController {
         shipment.order.status = orderStatusMap[newStatus.toString()];
       }
       await this.orderRepository.save(shipment.order);
+
+      // A shipment cancellation cancels the order too, and the order can reach
+      // this webhook after an in-app cancellation has already notified the
+      // customer (cancelling on ShipRocket sends the webhook straight back).
+      // Only notify on a genuine transition so that does not double-send.
+      if (
+        shipment.order.status === OrderStatus.CANCELLED &&
+        previousOrderStatus !== OrderStatus.CANCELLED
+      ) {
+        void this.emitOrderCancelled(shipment.order);
+      }
     }
 
     this.logger.log(`Shipment ${shipment.id} updated to status: ${status}`);
+  }
+
+  /**
+   * Emits the order-cancelled event for a cancellation that originated on the
+   * courier side. The shipment was loaded with only `order` and `order.user`,
+   * so the order is re-read with its line items before the event is built.
+   * Fire-and-forget, and errors are swallowed so a mail problem can never make a
+   * ShipRocket webhook fail.
+   */
+  private async emitOrderCancelled(order: Order): Promise<void> {
+    try {
+      const fullOrder = await this.orderRepository.findOne({
+        where: { id: order.id },
+        relations: ['items', 'user', 'payments'],
+      });
+
+      if (!fullOrder) {
+        return;
+      }
+
+      this.eventEmitter.emit(ORDER_CANCELLED_EVENT, {
+        ...buildOrderEmailPayload(fullOrder),
+        cancelledBy: 'admin',
+        reason: 'Cancelled by the courier',
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to emit order-cancelled event for #${order?.orderNumber}:`,
+        error,
+      );
+    }
   }
 }

@@ -6,6 +6,7 @@ import {
 import { InjectRepository } from "@nestjs/typeorm";
 import { DataSource, EntityManager, Repository } from "typeorm";
 import { ConfigService } from "@nestjs/config";
+import { EventEmitter2 } from "@nestjs/event-emitter";
 import Stripe from "stripe";
 import {
   Payment,
@@ -26,6 +27,10 @@ import { ShippingRocketService } from "../shipping/shipping-rocket.service";
 import { errorLogger } from "../../common/utils/error-logger";
 import { CreateShipmentDto } from "../shipping/dto/create-shipment.dto";
 import { generateOrderNumber } from "../../common/utils/slugify";
+import {
+  ORDER_PLACED_EVENT,
+} from "../order-notifications/order-notifications.types";
+import { buildOrderEmailPayload } from "../order-notifications/order-notifications.mapper";
 
 @Injectable()
 export class PaymentsService {
@@ -54,6 +59,7 @@ export class PaymentsService {
     private inventoryService: InventoryService,
     private shippingService: ShippingService,
     private shippingRocketService: ShippingRocketService,
+    private eventEmitter: EventEmitter2,
     private dataSource: DataSource,
   ) {
     const secretKey = this.configService.get("STRIPE_SECRET_KEY");
@@ -226,6 +232,26 @@ export class PaymentsService {
     }
   }
 
+  /**
+   * Emits the order-placed event for the prepaid checkout path. The listener is
+   * registered with `async: true`, so this only hands off to the event emitter
+   * and the Stripe webhook/confirm response never waits on SMTP. Errors are
+   * swallowed so a mail problem can never fail a paid order.
+   */
+  private emitOrderPlaced(order: any): void {
+    try {
+      this.eventEmitter.emit(
+        ORDER_PLACED_EVENT,
+        buildOrderEmailPayload(order, 'prepaid'),
+      );
+    } catch (error) {
+      console.error(
+        `Failed to emit order-placed event for #${order?.orderNumber}:`,
+        error,
+      );
+    }
+  }
+
   private async processSuccessfulPayment(
     session: Stripe.Checkout.Session,
   ): Promise<void> {
@@ -275,6 +301,7 @@ export class PaymentsService {
             relations: ['items', 'items.product', 'user'],
           });
           if (fullOrder) {
+            this.emitOrderPlaced(fullOrder);
             await this.createShipmentAfterPayment(fullOrder);
           }
         } catch (error) {
@@ -640,6 +667,7 @@ export class PaymentsService {
                 relations: ['items', 'items.product', 'user'],
               });
               if (fullOrder) {
+                this.emitOrderPlaced(fullOrder);
                 await this.createShipmentAfterPayment(fullOrder);
               }
             } catch (error) {

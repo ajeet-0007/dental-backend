@@ -1,4 +1,5 @@
 import { Module, forwardRef } from '@nestjs/common';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { PaymentsService } from './payments.service';
 import { PaymentsController } from './payments.controller';
@@ -10,6 +11,7 @@ import { ShippingModule } from '../shipping/shipping.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([Payment, Order, OrderItem, PaymentIntent, User, Cart, Product, ProductVariant]),
+    EventEmitterModule,
     forwardRef(() => InventoryModule),
     forwardRef(() => ShippingModule),
   ],

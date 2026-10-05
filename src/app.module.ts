@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { APP_GUARD } from "@nestjs/core";
 import { ConfigModule, ConfigService } from "@nestjs/config";
+import { EventEmitterModule } from "@nestjs/event-emitter";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { MulterModule } from "@nestjs/platform-express";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
@@ -38,6 +39,7 @@ import { ProfessionalVerificationModule } from "./modules/professional-verificat
 import { LoggerModule } from "./modules/logger/logger.module";
 import { SupportModule } from "./modules/support/support.module";
 import { AdviceRequestsModule } from "./modules/advice-requests/advice-requests.module";
+import { OrderNotificationsModule } from "./modules/order-notifications/order-notifications.module";
 
 @Module({
   imports: [
@@ -63,6 +65,9 @@ import { AdviceRequestsModule } from "./modules/advice-requests/advice-requests.
       }),
       inject: [ConfigService],
     }),
+    // Registered before the feature modules so they can import the bare
+    // EventEmitterModule and inject EventEmitter2.
+    EventEmitterModule.forRoot({ wildcard: false }),
     MulterModule.register({
       limits: {
         fileSize: 5 * 1024 * 1024,
@@ -129,6 +134,7 @@ import { AdviceRequestsModule } from "./modules/advice-requests/advice-requests.
     GalleryModule,
     SupportModule,
     AdviceRequestsModule,
+    OrderNotificationsModule,
   ],
   providers: [
     {

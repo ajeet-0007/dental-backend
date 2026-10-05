@@ -1,11 +1,7 @@
-import {
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-  Logger,
-} from "@nestjs/common";
+import { Injectable, NotFoundException, BadRequestException, Logger } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, DataSource } from "typeorm";
+import { EventEmitter2 } from "@nestjs/event-emitter";
 import {
   Order,
   OrderItem,
@@ -33,6 +29,11 @@ import {
 import { InventoryService } from "../inventory/inventory.service";
 import { ShippingRocketService } from "../shipping/shipping-rocket.service";
 import { ConfigService } from "@nestjs/config";
+import {
+  ORDER_CANCELLED_EVENT,
+  ORDER_PLACED_EVENT,
+} from "../order-notifications/order-notifications.types";
+import { buildOrderEmailPayload } from "../order-notifications/order-notifications.mapper";
 
 @Injectable()
 export class OrdersService {
@@ -64,6 +65,7 @@ export class OrdersService {
     private inventoryService: InventoryService,
     private shippingRocketService: ShippingRocketService,
     private configService: ConfigService,
+    private eventEmitter: EventEmitter2,
     private dataSource: DataSource,
   ) {
     this.warehousePincode = this.configService.get<string>('WAREHOUSE_PINCODE') || '243001';
@@ -81,6 +83,45 @@ export class OrdersService {
 
   private calculateShippingCharge(subtotal: number): number {
     return resolveShippingCharge(subtotal, this.pricingConfig);
+  }
+
+  /**
+   * Emits the order-placed event. Listeners are registered with `async: true`
+   * so this only hands off to the event emitter - no SMTP work happens here and
+   * the request path is never blocked. The try/catch keeps a listener-side
+   * error from propagating into the caller's transaction handling.
+   */
+  private emitOrderPlaced(order: any, paymentMethod?: string): void {
+    try {
+      this.eventEmitter.emit(
+        ORDER_PLACED_EVENT,
+        buildOrderEmailPayload(order, paymentMethod),
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to emit order-placed event for #${order?.orderNumber}:`,
+        error,
+      );
+    }
+  }
+
+  private emitOrderCancelled(
+    order: any,
+    cancelledBy: "user" | "admin",
+    reason?: string,
+  ): void {
+    try {
+      this.eventEmitter.emit(ORDER_CANCELLED_EVENT, {
+        ...buildOrderEmailPayload(order),
+        cancelledBy,
+        reason,
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to emit order-cancelled event for #${order?.orderNumber}:`,
+        error,
+      );
+    }
   }
 
   async create(userId: string, createOrderDto: CreateOrderDto): Promise<Order> {
@@ -215,7 +256,16 @@ export class OrdersService {
         }
       }
 
-      return this.findOne(savedOrder.id);
+      const createdOrder = await this.findOne(savedOrder.id);
+
+      // The transaction is already committed by this point. `emitOrderPlaced`
+      // swallows its own errors deliberately: a throw here would reach the
+      // `catch` below and call rollbackTransaction() on a committed runner,
+      // which surfaces as TransactionAlreadyCommittedError and would fail an
+      // order that was in fact saved.
+      this.emitOrderPlaced(createdOrder, isCOD ? "cod" : "prepaid");
+
+      return createdOrder;
     } catch (error) {
       await queryRunner.rollbackTransaction();
       throw error;
@@ -564,7 +614,9 @@ export class OrdersService {
       }
     }
 
-    return this.orderRepository.save(order);
+    const savedOrder = await this.orderRepository.save(order);
+    this.emitOrderCancelled(savedOrder, "admin");
+    return savedOrder;
   }
 
   async getOrdersForAdmin(
@@ -597,6 +649,7 @@ export class OrdersService {
   async cancelOrder(
     id: string,
     userId: string,
+    reason?: string,
   ): Promise<{ success: boolean; message: string }> {
     const order = await this.findOne(id);
 
@@ -605,8 +658,11 @@ export class OrdersService {
     }
 
     if (order.status === OrderStatus.PENDING_PAYMENT) {
+      // The order is hard-deleted here, so the email payload is built from the
+      // already-loaded entity before the rows disappear.
       await this.orderItemRepository.delete({ orderId: id });
       await this.orderRepository.delete(id);
+      this.emitOrderCancelled(order, "user", "Payment was not completed");
       return { success: true, message: "Order cancelled" };
     }
 
@@ -636,6 +692,7 @@ export class OrdersService {
     }
 
     await this.orderRepository.save(order);
+    this.emitOrderCancelled(order, "user", reason);
     return { success: true, message: "Order cancelled" };
   }
 
