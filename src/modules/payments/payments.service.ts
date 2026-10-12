@@ -24,6 +24,10 @@ import { InventoryService } from "../inventory/inventory.service";
 import { ShippingService } from "../shipping/shipping.service";
 import { ShippingRocketService } from "../shipping/shipping-rocket.service";
 import { errorLogger } from "../../common/utils/error-logger";
+import {
+  extractPincode,
+  normalizeShippingAddress,
+} from "../../common/utils/shipping-address";
 import { CreateShipmentDto } from "../shipping/dto/create-shipment.dto";
 import { generateOrderNumber } from "../../common/utils/slugify";
 import { buildOrderEmailPayload } from "../order-notifications/order-notifications.mapper";
@@ -390,7 +394,7 @@ export class PaymentsService {
       totalAmount: item.unitPrice * item.quantity,
     }));
 
-    let shippingAddress = orderData.shippingAddress;
+    let shippingAddress: string | undefined;
     if (orderData.addressId) {
       const address = await manager.findOne('Address', {
         where: { id: +orderData.addressId, userId },
@@ -409,6 +413,13 @@ export class PaymentsService {
           phone: (address as any).phone,
         });
       }
+    } else {
+      // Inline/unsaved address: normalize whatever shape arrived (JSON string,
+      // object or display string) to the canonical snapshot the saved-address
+      // path produces.
+      shippingAddress =
+        normalizeShippingAddress(orderData.shippingAddress, orderData.phone) ??
+        undefined;
     }
 
     const subtotal = orderData.subtotal;
@@ -472,22 +483,10 @@ export class PaymentsService {
 
     
 
-    // Parse shipping address to extract pincode
-    let deliveryPincode = '';
-    if (order.shippingAddress) {
-      try {
-        // Try JSON first (new format)
-        const addressObj = JSON.parse(order.shippingAddress);
-        deliveryPincode = addressObj.pincode || addressObj.zipCode || '';
-      } catch {
-        // Fallback: extract 6-digit PIN from plain text (Indian PIN codes)
-        const match = order.shippingAddress.match(/\b(\d{6})\b/);
-        if (match) {
-          deliveryPincode = match[1];
-        } else {
-        }
-      }
-    }
+    // Extract pincode from the shipping address (JSON or plain text)
+    const deliveryPincode = order.shippingAddress
+      ? extractPincode(order.shippingAddress)
+      : '';
 
     if (!deliveryPincode) {
       return;

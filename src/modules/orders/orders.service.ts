@@ -25,6 +25,10 @@ import {
   parsePricingNumber,
   resolveShippingCharge,
 } from "../../common/utils/shipping-pricing";
+import {
+  extractPincode,
+  normalizeShippingAddress,
+} from "../../common/utils/shipping-address";
 import { InventoryService } from "../inventory/inventory.service";
 import { ShippingRocketService } from "../shipping/shipping-rocket.service";
 import { ConfigService } from "@nestjs/config";
@@ -132,7 +136,7 @@ export class OrdersService {
       throw new BadRequestException("Cart is empty");
     }
 
-    let shippingAddress = createOrderDto.shippingAddress;
+    let shippingAddress: string | undefined;
 
     if (createOrderDto.addressId) {
       const address = await this.addressRepository.findOne({
@@ -156,6 +160,16 @@ export class OrdersService {
         country: 'India',
         phone: address.phone,
       });
+    } else {
+      // Inline/unsaved address: the storefront may send a JSON string, an
+      // object, or a plain display string. Normalize all of them to the same
+      // canonical JSON shape the saved-address path produces so downstream
+      // shipment creation has every field it validates on.
+      shippingAddress =
+        normalizeShippingAddress(
+          createOrderDto.shippingAddress,
+          createOrderDto.phone,
+        ) ?? undefined;
     }
 
     let subtotal = 0;
@@ -278,15 +292,7 @@ export class OrdersService {
     shippingAddressJson: string,
   ): Promise<Shipment | null> {
     try {
-      let shippingAddress: any;
-      try {
-        shippingAddress = JSON.parse(shippingAddressJson);
-      } catch {
-        this.logger.error('Failed to parse shipping address JSON');
-        return null;
-      }
-
-      const deliveryPincode = shippingAddress?.pincode;
+      const deliveryPincode = extractPincode(shippingAddressJson);
       if (!deliveryPincode) {
         this.logger.error('Delivery pincode not found in shipping address');
         return null;
