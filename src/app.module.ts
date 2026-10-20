@@ -40,6 +40,7 @@ import { LoggerModule } from "./modules/logger/logger.module";
 import { SupportModule } from "./modules/support/support.module";
 import { AdviceRequestsModule } from "./modules/advice-requests/advice-requests.module";
 import { OrderNotificationsModule } from "./modules/order-notifications/order-notifications.module";
+import { PageVisitsModule } from "./modules/page-visits/page-visits.module";
 
 @Module({
   imports: [
@@ -137,6 +138,7 @@ import { OrderNotificationsModule } from "./modules/order-notifications/order-no
     SupportModule,
     AdviceRequestsModule,
     OrderNotificationsModule,
+    PageVisitsModule,
   ],
   providers: [
     {
