@@ -17,6 +17,7 @@ import { ShippingRocketService } from "../shipping/shipping-rocket.service";
 import { slugify } from "../../common/utils/slugify";
 import { AdminProductQueryDto } from "./dto/admin-product-query.dto";
 import { ImageKitService } from "../imagekit/imagekit.service";
+import { ImageProcessingService } from "../imagekit/image-processing.service";
 import { buildOrderEmailPayload } from "../order-notifications/order-notifications.mapper";
 import { OrderNotificationsListener } from "../order-notifications/order-notifications.listener";
 
@@ -51,6 +52,7 @@ export class AdminService {
     private orderNotifications: OrderNotificationsListener,
     private dataSource: DataSource,
     private imageKitService: ImageKitService,
+    private imageProcessingService: ImageProcessingService,
   ) {}
 
   async getDashboardStats() {
@@ -723,6 +725,8 @@ export class AdminService {
       }
     }
 
+    await this.processProductImages(restData);
+
     const product = this.productRepository.create(restData);
     const savedProduct = (await this.productRepository.save(product)) as unknown as Product;
 
@@ -764,7 +768,10 @@ export class AdminService {
       }
     }
 
+    await this.processProductImages(restData);
+
     if (options !== undefined) {
+      await this.processOptionSwatches(options);
       await this.updateProductOptions(productId, options);
       restData.hasVariants = options.length > 0;
     }
@@ -803,6 +810,48 @@ export class AdminService {
     }
 
     return updatedProduct;
+  }
+
+  private async processProductImages(productData: any): Promise<void> {
+    if (!Array.isArray(productData?.images)) {
+      return;
+    }
+
+    productData.images = await this.imageProcessingService.processUrls(
+      productData.images,
+      "/dentalkart/products",
+    );
+  }
+
+  private async processOptionSwatches(options: any[]): Promise<void> {
+    if (!Array.isArray(options)) {
+      return;
+    }
+
+    await Promise.all(
+      options.map(async (option) => {
+        if (!Array.isArray(option?.values)) {
+          return;
+        }
+
+        await Promise.all(
+          option.values.map(async (value: any) => {
+            if (
+              value &&
+              typeof value === "object" &&
+              typeof value.swatchUrl === "string" &&
+              value.swatchUrl.trim()
+            ) {
+              value.swatchUrl =
+                await this.imageProcessingService.processOptionalUrl(
+                  value.swatchUrl,
+                  "/dentalkart/swatches",
+                );
+            }
+          }),
+        );
+      }),
+    );
   }
 
   private async updateProductOptions(productId: number, options: any[]): Promise<void> {

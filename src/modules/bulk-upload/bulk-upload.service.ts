@@ -1,11 +1,9 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { parseString } from '@fast-csv/parse';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as crypto from 'crypto';
 import { Product } from '../../database/entities/product.entity';
 import { ProductVariant } from '../../database/entities/product-variant.entity';
 import { ProductOption } from '../../database/entities/product-option.entity';
@@ -18,6 +16,7 @@ import { Department } from '../../database/entities/department.entity';
 import { BulkUploadResultDto } from './dto/bulk-upload.dto';
 import { slugify, generateSKU } from '../../common/utils/slugify';
 import { decodeCsvBuffer } from '../../common/utils/csv-encoding';
+import { ImageProcessingService } from '../imagekit/image-processing.service';
 
 interface ParsedRow {
   product_name: string;
@@ -120,7 +119,7 @@ export class BulkUploadService {
     @InjectRepository(Department)
     private departmentRepository: Repository<Department>,
     private dataSource: DataSource,
-    private configService: ConfigService,
+    private imageProcessingService: ImageProcessingService,
   ) {}
 
   generateTemplate(): string {
@@ -448,62 +447,40 @@ export class BulkUploadService {
     const urls: string[] = [];
 
     for (const imgPath of paths) {
-      if (imgPath.startsWith('http://') || imgPath.startsWith('https://')) {
-        urls.push(imgPath);
-        continue;
-      }
-
       if (this.imageUploadCache.has(imgPath)) {
         urls.push(this.imageUploadCache.get(imgPath)!);
         continue;
       }
 
       try {
-        const fileBuffer = fs.readFileSync(imgPath);
-        const fileName = path.basename(imgPath);
-        const imageUrl = await this.uploadToImageKit(fileBuffer, fileName);
+        let imageUrl: string;
+
+        if (imgPath.startsWith('http://') || imgPath.startsWith('https://')) {
+          imageUrl = await this.imageProcessingService.processUrl(
+            imgPath,
+            '/dentalkart/products',
+          );
+        } else {
+          const fileBuffer = fs.readFileSync(imgPath);
+          const fileName = path.basename(imgPath);
+          const uploaded = await this.imageProcessingService.processBuffer(
+            fileBuffer,
+            fileName,
+            '/dentalkart/products',
+          );
+          imageUrl = uploaded.url;
+        }
+
         this.imageUploadCache.set(imgPath, imageUrl);
         urls.push(imageUrl);
       } catch (error) {
-        console.error(`Failed to upload image ${imgPath}:`, error);
+        throw new BadRequestException(
+          `Failed to process image ${imgPath}: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
     }
 
     return urls;
-  }
-
-  private async uploadToImageKit(fileBuffer: Buffer, fileName: string): Promise<string> {
-    const publicKey = this.configService.get<string>('IMAGEKIT_PUBLIC_KEY') || '';
-    const privateKey = this.configService.get<string>('IMAGEKIT_PRIVATE_KEY') || '';
-
-    const token = crypto.randomUUID();
-    const expire = Math.floor(Date.now() / 1000) + 3500;
-    const signature = crypto
-      .createHmac('sha1', privateKey)
-      .update(token + expire)
-      .digest('hex');
-
-    const formData = new FormData();
-    formData.append('file', fileBuffer.toString('base64'));
-    formData.append('fileName', fileName);
-    formData.append('publicKey', publicKey);
-    formData.append('token', token);
-    formData.append('expire', expire.toString());
-    formData.append('signature', signature);
-    formData.append('folder', '/dentalkart');
-
-    const response = await fetch('https://upload.imagekit.io/api/v1/files/upload', {
-      method: 'POST',
-      body: formData,
-    });
-
-    const result = await response.json();
-
-    if (!response.ok) {
-      throw new Error(result.message || 'ImageKit upload failed');
-    }
-
-    return result.url;
   }
 
   async processBulkUpload(file: Express.Multer.File): Promise<{ results: BulkUploadResultDto[] }> {

@@ -23,6 +23,7 @@ import {
 import { slugify, generateSKU } from "../../common/utils/slugify";
 import { leanProductQuery } from "../../common/utils/lean-product";
 import { ImageKitService } from "../imagekit/imagekit.service";
+import { ImageProcessingService } from "../imagekit/image-processing.service";
 
 @Injectable()
 export class ProductsService {
@@ -47,7 +48,75 @@ export class ProductsService {
     private variantOptionRepository: Repository<VariantOption>,
     private dataSource: DataSource,
     private imageKitService: ImageKitService,
+    private imageProcessingService: ImageProcessingService,
   ) {}
+
+  private async processProductPayload(payload: any): Promise<void> {
+    if (!payload) {
+      return;
+    }
+
+    if (Array.isArray(payload.images)) {
+      payload.images = await this.imageProcessingService.processUrls(
+        payload.images,
+        "/dentalkart/products",
+      );
+    }
+
+    if (Array.isArray(payload.options)) {
+      await this.processOptionSwatches(payload.options);
+    }
+
+    if (Array.isArray(payload.variants)) {
+      await Promise.all(
+        payload.variants.map(async (variant: any) => {
+          if (
+            typeof variant?.image === "string" &&
+            variant.image.trim()
+          ) {
+            variant.image = await this.imageProcessingService.processUrl(
+              variant.image,
+              "/dentalkart/products",
+            );
+          }
+
+          if (Array.isArray(variant?.images)) {
+            variant.images = await this.imageProcessingService.processUrls(
+              variant.images,
+              "/dentalkart/products",
+            );
+          }
+        }),
+      );
+    }
+  }
+
+  private async processOptionSwatches(options: any[]): Promise<void> {
+    await Promise.all(
+      options.map(async (option) => {
+        if (!Array.isArray(option?.values)) {
+          return;
+        }
+
+        await Promise.all(
+          option.values.map(async (value: any) => {
+            if (
+              value &&
+              typeof value === "object" &&
+              typeof value.swatchUrl === "string" &&
+              value.swatchUrl.trim()
+            ) {
+              value.swatchUrl =
+                await this.imageProcessingService.processOptionalUrl(
+                  value.swatchUrl,
+                  "/dentalkart/swatches",
+                );
+            }
+          }),
+        );
+      }),
+    );
+  }
 
   async create(createProductDto: CreateProductDto): Promise<Product> {
     const slug = slugify(createProductDto.slug || createProductDto.name);
@@ -61,6 +130,13 @@ export class ProductsService {
     }
 
     const sku = createProductDto.sku || generateSKU("PROD");
+
+    if (Array.isArray(createProductDto.images)) {
+      createProductDto.images = await this.imageProcessingService.processUrls(
+        createProductDto.images,
+        "/dentalkart/products",
+      );
+    }
 
     const { department, departments, ...restDto } = createProductDto;
 
@@ -96,6 +172,8 @@ export class ProductsService {
 
     const hasVariants = dto.options && dto.options.length > 0 && dto.variants && dto.variants.length > 0;
     const sku = dto.sku || generateSKU("PROD");
+
+    await this.processProductPayload(dto);
 
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -549,6 +627,8 @@ export class ProductsService {
       updateProductDto.slug = slugify(updateProductDto.slug);
     }
 
+    await this.processProductPayload(updateProductDto);
+
     if (updateProductDto.options !== undefined) {
       await this.updateProductOptions(product.id, updateProductDto.options);
       updateProductDto.hasVariants = updateProductDto.options.length > 0;
@@ -578,8 +658,20 @@ export class ProductsService {
         relations: ['values'],
       });
 
-      const removedSwatchUrls = existingOptions.flatMap((opt) =>
+      const previousSwatchUrls = existingOptions.flatMap((opt) =>
         (opt.values || []).map((val) => val.swatchUrl),
+      );
+      const currentSwatchUrls = new Set(
+        options.flatMap((opt) =>
+          (opt.values || [])
+            .map((val: any) =>
+              val && typeof val === "object" ? val.swatchUrl : null,
+            )
+            .filter(Boolean),
+        ),
+      );
+      const removedSwatchUrls = previousSwatchUrls.filter(
+        (url) => url && !currentSwatchUrls.has(url),
       );
 
       for (const existingOpt of existingOptions) {
@@ -654,6 +746,20 @@ export class ProductsService {
 
     const sku = createVariantDto.sku || generateSKU("VAR");
 
+    if (typeof createVariantDto.image === "string" && createVariantDto.image.trim()) {
+      createVariantDto.image = await this.imageProcessingService.processUrl(
+        createVariantDto.image,
+        "/dentalkart/products",
+      );
+    }
+
+    if (Array.isArray(createVariantDto.images)) {
+      createVariantDto.images = await this.imageProcessingService.processUrls(
+        createVariantDto.images,
+        "/dentalkart/products",
+      );
+    }
+
     const variant = this.productVariantRepository.create({
       productId: String(product.id),
       name: createVariantDto.name || '',
@@ -662,6 +768,8 @@ export class ProductsService {
       mrp: createVariantDto.mrp || createVariantDto.sellingPrice,
       weight: Number(createVariantDto.weight) || 0,
       weightUnit: createVariantDto.weightUnit || '',
+      image: createVariantDto.image,
+      images: createVariantDto.images,
       color: createVariantDto.color || '',
       size: createVariantDto.size || '',
       flavor: createVariantDto.flavor || '',
@@ -734,6 +842,8 @@ export class ProductsService {
       throw new NotFoundException("Product not found");
     }
 
+    await this.processProductPayload({ variants: variantDtos });
+
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -757,6 +867,8 @@ export class ProductsService {
           mrp: dto.mrp || dto.sellingPrice,
           weight: Number(dto.weight) || 0,
           weightUnit: dto.weightUnit || '',
+          image: dto.image,
+          images: dto.images,
           color: dto.color || '',
           size: dto.size || '',
           flavor: dto.flavor || '',
@@ -874,6 +986,20 @@ export class ProductsService {
 
     if (updateVariantDto.expiresAt === '') {
       updateVariantDto.expiresAt = undefined;
+    }
+
+    if (typeof updateVariantDto.image === "string" && updateVariantDto.image.trim()) {
+      updateVariantDto.image = await this.imageProcessingService.processUrl(
+        updateVariantDto.image,
+        "/dentalkart/products",
+      );
+    }
+
+    if (Array.isArray(updateVariantDto.images)) {
+      updateVariantDto.images = await this.imageProcessingService.processUrls(
+        updateVariantDto.images,
+        "/dentalkart/products",
+      );
     }
 
     const sanitizedDto: any = { ...updateVariantDto };

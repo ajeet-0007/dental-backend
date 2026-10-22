@@ -8,6 +8,7 @@ import {
   BadRequestException,
 } from "@nestjs/common";
 import { ImageKitService } from "./imagekit.service";
+import { ImageProcessingService } from "./image-processing.service";
 import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
 import { RolesGuard } from "../../common/guards/roles.guard";
 import { Roles } from "../../common/decorators/roles.decorator";
@@ -16,7 +17,10 @@ import { FileInterceptor } from "@nestjs/platform-express";
 
 @Controller("imagekit")
 export class ImageKitController {
-  constructor(private readonly imageKitService: ImageKitService) {}
+  constructor(
+    private readonly imageKitService: ImageKitService,
+    private readonly imageProcessingService: ImageProcessingService,
+  ) {}
 
   @Get("auth")
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -38,29 +42,10 @@ export class ImageKitController {
       throw new BadRequestException("No file provided");
     }
 
-    const authParams = this.imageKitService.getAuthParams();
-    const formData = new FormData();
-    formData.append("file", file.buffer.toString("base64"));
-    formData.append("fileName", file.originalname);
-    formData.append("publicKey", this.imageKitService.getPublicKey());
-    formData.append("token", authParams.token);
-    formData.append("expire", authParams.expire.toString());
-    formData.append("signature", authParams.signature);
-    formData.append("folder", "/dentalkart");
-
-    const response = await fetch(
-      "https://upload.imagekit.io/api/v1/files/upload",
-      {
-        method: "POST",
-        body: formData,
-      },
+    const result = await this.imageProcessingService.processFile(
+      file,
+      "/dentalkart",
     );
-
-    const result = await response.json();
-
-    if (!response.ok) {
-      throw new BadRequestException(result.message || "Upload failed");
-    }
 
     return {
       url: result.url,
@@ -77,39 +62,11 @@ export class ImageKitController {
       throw new BadRequestException("No file provided");
     }
 
-    const allowedMimeTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
-    if (!allowedMimeTypes.includes(file.mimetype)) {
-      throw new BadRequestException("Only image files (JPEG, PNG, WebP, GIF) are allowed");
-    }
-
-    const maxSize = 5 * 1024 * 1024;
-    if (file.size > maxSize) {
-      throw new BadRequestException("File size must be less than 5MB");
-    }
-
-    const authParams = this.imageKitService.getAuthParams();
-    const formData = new FormData();
-    formData.append("file", file.buffer.toString("base64"));
-    formData.append("fileName", `review_${Date.now()}_${file.originalname}`);
-    formData.append("publicKey", this.imageKitService.getPublicKey());
-    formData.append("token", authParams.token);
-    formData.append("expire", authParams.expire.toString());
-    formData.append("signature", authParams.signature);
-    formData.append("folder", "/dentalkart/reviews");
-
-    const response = await fetch(
-      "https://upload.imagekit.io/api/v1/files/upload",
-      {
-        method: "POST",
-        body: formData,
-      },
+    const result = await this.imageProcessingService.processFile(
+      file,
+      "/dentalkart/reviews",
+      ["image/jpeg", "image/png", "image/webp", "image/gif"],
     );
-
-    const result = await response.json();
-
-    if (!response.ok) {
-      throw new BadRequestException(result.message || "Upload failed");
-    }
 
     return {
       url: result.url,

@@ -302,7 +302,7 @@ Client                     Backend                         Stripe/ShipRocket
 | JWT | `JWT_SECRET`, `JWT_REFRESH_SECRET`, `*_EXPIRES_IN` | Auth module |
 | Stripe | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | Payments module |
 | OAuth | `GOOGLE_CLIENT_*`, `FACEBOOK_APP_*`, `APPLE_*` | Auth strategies |
-| ImageKit | `IMAGEKIT_*` | ImageKit module |
+| ImageKit | `IMAGEKIT_*`; optional `IMAGE_MAX_DOWNLOAD_BYTES`, `IMAGE_FETCH_TIMEOUT_MS`, `IMAGE_ALLOW_PRIVATE_HOSTS` | ImageKit module (upload, lossless compression, remote URL ingestion) |
 | ShipRocket | `SHIPPINGROCKET_*` | Shipping module |
 | SMTP | `SMTP_*` | Email module |
 | Warehouse | `WAREHOUSE_*` | Shipping module |

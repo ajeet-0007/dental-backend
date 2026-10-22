@@ -1,11 +1,20 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { BadRequestException, Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import * as crypto from "crypto";
+
+export interface ImageKitUploadResult {
+  url: string;
+  fileId: string;
+  name: string;
+  thumbnailUrl?: string;
+}
 
 @Injectable()
 export class ImageKitService {
   private readonly logger = new Logger(ImageKitService.name);
   private static readonly DELETE_CHUNK_SIZE = 100;
+  private static readonly UPLOAD_ENDPOINT =
+    "https://upload.imagekit.io/api/v1/files/upload";
 
   constructor(private configService: ConfigService) {}
 
@@ -36,6 +45,62 @@ export class ImageKitService {
       expire,
       signature,
     };
+  }
+
+  async uploadBuffer(
+    buffer: Buffer,
+    fileName: string,
+    folder = "/dentalkart",
+  ): Promise<ImageKitUploadResult> {
+    const publicKey = this.getPublicKey();
+    const privateKey = this.getPrivateKey();
+
+    if (!publicKey || !privateKey) {
+      throw new BadRequestException("ImageKit is not configured");
+    }
+
+    const authParams = this.getAuthParams();
+    const formData = new FormData();
+    formData.append("file", buffer.toString("base64"));
+    formData.append("fileName", fileName);
+    formData.append("publicKey", publicKey);
+    formData.append("token", authParams.token);
+    formData.append("expire", authParams.expire.toString());
+    formData.append("signature", authParams.signature);
+    formData.append("folder", folder);
+
+    const response = await fetch(ImageKitService.UPLOAD_ENDPOINT, {
+      method: "POST",
+      body: formData,
+    });
+
+    const result = (await response.json()) as {
+      url?: string;
+      fileId?: string;
+      name?: string;
+      thumbnailUrl?: string;
+      message?: string;
+    };
+
+    if (!response.ok || !result.url) {
+      throw new BadRequestException(result.message || "ImageKit upload failed");
+    }
+
+    return {
+      url: result.url,
+      fileId: result.fileId || "",
+      name: result.name || fileName,
+      thumbnailUrl: result.thumbnailUrl,
+    };
+  }
+
+  isImageKitUrl(url: string): boolean {
+    const endpoint = this.getUrlEndpoint().replace(/\/+$/, "");
+    if (!endpoint) {
+      return false;
+    }
+
+    return url === endpoint || url.startsWith(`${endpoint}/`);
   }
 
   private getFileIdFromUrl(url: string): string | null {
